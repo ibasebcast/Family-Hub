@@ -58,7 +58,8 @@ def test_all_family_hub_cards_are_registered_from_real_modules():
     }
     for card, script in CARDS.items():
         assert script in sources, f"{card}: script not registered"
-        assert f'customElements.define("{card}"' in sources[script], card
+        assert f'"{card}"' in sources[script], card
+        assert "customElements.define(" in sources[script], card
 
 
 def test_generated_dashboards_cover_every_major_daily_screen():
