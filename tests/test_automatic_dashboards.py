@@ -84,8 +84,8 @@ async def test_installation_creates_shared_dashboard_and_is_idempotent():
         patch.object(dashboard_manager, "_live_dashboard_collection", return_value=collection),
         patch.object(dashboard_manager.frontend, "async_panel_exists", return_value=False),
     ):
-        assert await dashboard_manager.async_ensure_dashboards(hass, []) == 1
-        assert [item["url_path"] for item in collection.items] == ["family-hub"]
+        assert await dashboard_manager.async_ensure_dashboards(hass, []) == 2
+        assert [item["url_path"] for item in collection.items] == ["family-hub", "family-hub-wall"]
         shared = collection.items[0]
         assert shared["require_admin"] is True
         assert shared["show_in_sidebar"] is True
@@ -95,7 +95,7 @@ async def test_installation_creates_shared_dashboard_and_is_idempotent():
         # A user can edit their dashboard without an update resetting it.
         original.saved["views"][0]["title"] = "Customized by household"
         assert await dashboard_manager.async_ensure_dashboards(hass, []) == 0
-        assert len(collection.created) == 1
+        assert len(collection.created) == 2
         assert original.save_count == 1
         assert original.saved["views"][0]["title"] == "Customized by household"
 
@@ -107,13 +107,13 @@ async def test_new_members_get_missing_dashboards_without_rewriting_existing():
         patch.object(dashboard_manager, "_live_dashboard_collection", return_value=collection),
         patch.object(dashboard_manager.frontend, "async_panel_exists", return_value=False),
     ):
-        assert await dashboard_manager.async_ensure_dashboards(hass, members[:1]) == 2
+        assert await dashboard_manager.async_ensure_dashboards(hass, members[:1]) == 3
         existing_paths = [item["url_path"] for item in collection.items]
-        assert len(existing_paths) == 2
+        assert len(existing_paths) == 3
         first = hass.data[LOVELACE_DATA].dashboards[existing_paths[-1]]
         assert first.saved["views"][0]["cards"][0]["member_id"] == "opaque-a"
         assert await dashboard_manager.async_ensure_dashboards(hass, members) == 1
-        assert len(collection.items) == 3
+        assert len(collection.items) == 4
         assert first.save_count == 1
         created = collection.items[-1]
         assert created["show_in_sidebar"] is False
