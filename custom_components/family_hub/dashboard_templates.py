@@ -31,6 +31,8 @@ def family_dashboard():
                     {"type": "custom:family-hub-calendar-card"},
                     {"type": "custom:family-hub-meals-card"},
                     {"type": "custom:family-hub-shopping-card"},
+                    {"type": "custom:family-hub-routines-card"},
+                    {"type": "custom:family-hub-custody-card"},
                 ],
             },
             {
@@ -67,6 +69,8 @@ def member_dashboard(member):
                 "icon": "mdi:checkbox-marked-circle-outline",
                 "cards": [
                     {"type": "custom:family-hub-member-card", "member_id": member_id},
+                    {"type": "custom:family-hub-routines-card", "member_id": member_id},
+                    {"type": "custom:family-hub-custody-card", "member_id": member_id},
                 ],
             },
             {
