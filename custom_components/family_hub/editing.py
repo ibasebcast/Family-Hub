@@ -70,6 +70,16 @@ def delete_record(data, *, collection, record_id):
             raise ValueError("Member still has chores")
         if any(t["member_id"] == record_id for t in result["transactions"]):
             raise ValueError("Member has point history")
+        if any(c.get("member_id") == record_id for c in result.get("completions", [])):
+            raise ValueError("Member has chore completion history")
+        if any(r.get("member_id") == record_id for r in result.get("redemptions", [])):
+            raise ValueError("Member has reward redemption history")
+        if any(record_id in r.get("member_ids", []) for r in result.get("routines", [])):
+            raise ValueError("Member has assigned routines")
+        if any(record_id in r.get("member_ids", []) for r in result.get("rotations", [])):
+            raise ValueError("Member has assigned household rotations")
+        if any(record_id in e.get("member_ids", []) for e in result.get("events", [])):
+            raise ValueError("Member has assigned calendar events")
     if collection == "chores" and any(c["chore_id"] == record_id for c in result["completions"]):
         raise ValueError("Chore has completion history")
     if collection == "rewards" and any(r["reward_id"] == record_id for r in result.get("redemptions", [])):
