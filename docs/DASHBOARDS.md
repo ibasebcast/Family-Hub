@@ -42,6 +42,13 @@ Management has tabs for household members, chores, rewards, currency name and
 external calendar selection. Editing existing records is supported through
 the authenticated API, with more dashboard editing controls planned.
 
+## Room controls
+
+```yaml
+type: custom:family-hub-room-card
+member_id: REPLACE_WITH_MEMBER_ID
+```
+
 ## Weather and reward requests
 
 ```yaml
