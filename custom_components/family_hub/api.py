@@ -15,8 +15,21 @@ from .organizer import add_event, add_meal, add_shopping_item, set_shopping_chec
 from .routines import add_routine, complete_routine_step, set_presence
 from .exports import export_household
 from .room import set_room_entities
+from .announcements import add_announcement, remove_announcement
+from .settings import update_settings
 
 COMMANDS = {
+    "add_announcement": (add_announcement, {
+        vol.Required("title"): str, vol.Required("message"): str,
+        vol.Optional("expires_at"): str,
+    }),
+    "remove_announcement": (remove_announcement, {
+        vol.Required("announcement_id"): str,
+    }),
+    "update_settings": (update_settings, {
+        vol.Optional("currency_name"): str,
+        vol.Optional("calendar_entities"): [str],
+    }),
     "set_room_entities": (set_room_entities, {
         vol.Required("member_id"): str,
         vol.Required("entity_ids"): [str],
