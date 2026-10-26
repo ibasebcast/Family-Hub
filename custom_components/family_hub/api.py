@@ -252,6 +252,10 @@ def register_api(hass):
                         if name == "claim_chore":
                             from homeassistant.util import dt as dt_util
                             kwargs["day"] = dt_util.now().date()
+                        if name == "complete_routine_step" and not connection.user.is_admin:
+                            from homeassistant.util import dt as dt_util
+                            if kwargs["day"] != dt_util.now().date().isoformat():
+                                raise ValueError("Members can only complete routine steps for today")
                         updated = function(snapshot, **kwargs)
                         await store.save(updated)
                     connection.send_result(msg["id"], {"success": True})
