@@ -46,6 +46,12 @@ const templates = {
     icon:"mdi:home-heart",
     config:{views:[{title:"Home", cards:[]}]}
   },
+  wall: {
+    url_path:"family-hub-wall",
+    title:"Family Hub Display",
+    icon:"mdi:monitor-dashboard",
+    config:{views:[{title:"Today", cards:[]}]}
+  },
   members: [{
     url_path:"family-hub-member-abc123",
     title:"Family Hub: Member",
@@ -68,13 +74,15 @@ test("installer creates only missing dashboards, and fills their configuration",
   await card.installDashboards();
   const created = messages.filter(m => m.type === "lovelace/dashboards/create");
   const saved = messages.filter(m => m.type === "lovelace/config/save");
-  assert.equal(created.length, 1);
-  assert.equal(saved.length, 1);
-  assert.equal(created[0].url_path, "family-hub-member-abc123");
+  assert.equal(created.length, 2);
+  assert.equal(saved.length, 2);
+  assert.equal(created[0].url_path, "family-hub-wall");
+  assert.equal(created[1].url_path, "family-hub-member-abc123");
   assert.equal(created[0].require_admin, false);
   assert.equal(created[0].show_in_sidebar, false);
-  assert.equal(saved[0].url_path, "family-hub-member-abc123");
-  assert.match(card.notice, /Created 1 dashboard\(s\); skipped 1 existing/);
+  assert.equal(saved[0].url_path, "family-hub-wall");
+  assert.equal(saved[1].url_path, "family-hub-member-abc123");
+  assert.match(card.notice, /Created 2 dashboard\(s\); skipped 1 existing/);
 });
 
 test("installer never overwrites existing dashboard configurations", async () => {
@@ -84,14 +92,14 @@ test("installer never overwrites existing dashboard configurations", async () =>
     messages.push(message);
     if (message.type === "family_hub/dashboard_templates") return templates;
     if (message.type === "lovelace/dashboards/list") return [
-      {url_path:"family-hub"}, {url_path:"family-hub-member-abc123"}
+      {url_path:"family-hub"}, {url_path:"family-hub-wall"}, {url_path:"family-hub-member-abc123"}
     ];
     return null;
   }};
   await card.installDashboards();
   assert.equal(messages.filter(m => m.type === "lovelace/dashboards/create").length, 0);
   assert.equal(messages.filter(m => m.type === "lovelace/config/save").length, 0);
-  assert.match(card.notice, /skipped 2 existing/);
+  assert.match(card.notice, /skipped 3 existing/);
 });
 
 test("installer reports failed API calls without claiming success", async () => {
