@@ -52,4 +52,19 @@ def validate_backup(payload):
         raise ValueError("Backup has completions for unknown chores")
     if any(r.get("reward_id") not in rewards for r in data["redemptions"]):
         raise ValueError("Backup has redemptions for unknown rewards")
+    if any(r.get("member_id") not in members for r in data["redemptions"]):
+        raise ValueError("Backup has redemptions for unknown members")
+    if any(c.get("member_id") not in members for c in data["completions"]):
+        raise ValueError("Backup has completions for unknown members")
+    if any(any(member not in members for member in r.get("member_ids", []))
+           for r in data["routines"] + data["rotations"] + data["events"]):
+        raise ValueError("Backup has assignments for unknown members")
+    routine_ids = {r["id"] for r in data["routines"]}
+    if any(c.get("routine_id") not in routine_ids or c.get("member_id") not in members
+           for c in data["routine_completions"]):
+        raise ValueError("Backup has orphaned routine completions")
+    if any(member not in members for member in data["room_entities"]):
+        raise ValueError("Backup has room devices assigned to unknown members")
+    if any(member not in members for member in data["presence"]):
+        raise ValueError("Backup has presence records for unknown members")
     return deepcopy(data)
