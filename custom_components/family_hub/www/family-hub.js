@@ -131,11 +131,12 @@ class FamilyHubMemberCard extends FamilyHubBase {
       return;
     }
     const data = this.data;
-    const member = (data.members || []).find(item => item.id === this.config.member_id)
-      || (data.members || [])[0];
+    const member = this.config.member_id
+      ? (data.members || []).find(item => item.id === this.config.member_id)
+      : (data.members || [])[0];
     if (!member) {
       this.shadowRoot.innerHTML = this.shell(
-        '<h2>Family member</h2><p class="notice">No member configured yet.</p>');
+        '<h2>Family member</h2><p class="notice">This member is not available to your account or is not configured.</p>');
       return;
     }
     const chores = (data.chores || []).filter(chore => chore.assignee_ids.includes(member.id));
