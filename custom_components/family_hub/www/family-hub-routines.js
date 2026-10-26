@@ -93,6 +93,19 @@
   }
 
   class FamilyHubRoutinesCard extends FamilyHubScheduleBase {
+    constructor() {
+      super();
+      this.activeMemberId = null;
+    }
+
+    member() {
+      // Shared administrator views can switch members; personal views stay
+      // hard-scoped to their configured member ID.
+      if (this.config.member_id) return super.member();
+      const members = this.data?.members || [];
+      return members.find(item => item.id === this.activeMemberId) || members[0];
+    }
+
     render() {
       if (!this.shadowRoot) return;
       const data = this.data || {};
@@ -117,6 +130,13 @@
         return `<section><h3>${escape(routine.title)}</h3>${steps}</section>`;
       }).join("");
       const admin = Boolean(this._hass?.user?.is_admin);
+      const memberPicker = admin && !this.config.member_id && members.length
+        ? `<label>Viewing member<select id="view-member">
+          ${members.map(person => `<option value="${escape(person.id)}"
+            ${person.id === selectedMember ? "selected" : ""}>
+            ${escape(person.name)}</option>`).join("")}
+          </select></label>`
+        : "";
       const adminForm = admin ? `<h3>Create routine</h3>
         <form id="new-routine">
           <label>Name<input name="title" required placeholder="Morning routine"></label>
@@ -134,8 +154,13 @@
       const description = member ? "" :
         "<p class=\"muted\">Add a household member to see their daily routine.</p>";
 
-      this.layout("Daily routines", `${description}${presence}
+      this.layout("Daily routines", `${description}${memberPicker}${presence}
         ${entries || "<p>No routines assigned yet.</p>"}${adminForm}`);
+      const picker = this.shadowRoot.querySelector("#view-member");
+      if (picker) picker.onchange = () => {
+        this.activeMemberId = picker.value;
+        this.render();
+      };
 
       this.shadowRoot.querySelectorAll("[data-routine]").forEach(button => {
         button.onclick = () => this.send("complete_routine_step", {
