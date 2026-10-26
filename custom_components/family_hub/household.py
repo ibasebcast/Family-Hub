@@ -70,6 +70,10 @@ def claim_chore(data, *, chore_id, member_id, day: date):
     chore = _chore(data, chore_id)
     if chore is None or member_id not in chore["assignee_ids"]:
         raise ValueError("Chore is not assigned to this member")
+    # Presence false means the member is away. Do not accumulate chore
+    # completions or credit while an assigned member is away.
+    if data.get("presence", {}).get(member_id) is False:
+        raise ValueError("Chore claims are paused while this member is away")
     current_assignee = active_rotating_assignee(chore, day)
     if current_assignee is not None and current_assignee != member_id:
         raise ValueError("This rotating chore is assigned to another member today")
