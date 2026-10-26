@@ -123,10 +123,11 @@
         </select><button id="refresh">Refresh</button></header>
         ${this.error?`<p class="error" role="alert">${escape(this.error)}</p>`:""}
         ${body}
-        <form id="add"><input name="title" placeholder="New event" required>
+        ${this.config?.read_only ? "" : `<form id="add">
+          <input name="title" placeholder="New event" required>
           <input type="datetime-local" name="start" required>
           <input type="datetime-local" name="end" required>
-          <button>Add event</button></form>
+          <button>Add event</button></form>`}
       </article>`;
       const root=this.shadowRoot;
       root.querySelector("#prev").onclick=()=>this.shift(-1);
@@ -136,7 +137,7 @@
       root.querySelector("#view").onchange=event=>{
         this.view=event.target.value;this.render();
       };
-      root.querySelector("#add").onsubmit=async event=>{
+      if (!this.config?.read_only) root.querySelector("#add").onsubmit=async event=>{
         event.preventDefault();
         const form=event.target.elements;
         const start=new Date(form.start.value),end=new Date(form.end.value);
