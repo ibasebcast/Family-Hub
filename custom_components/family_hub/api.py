@@ -25,9 +25,21 @@ from .custody import add_rotation, rotation_schedule
 from .dashboard_templates import templates_for_members
 from .dashboard_manager import async_ensure_dashboards_safely
 from .storage import empty_household
+from .reminders import add_reminder, complete_reminder
 
 COMMANDS = {
     "add_rotation": (add_rotation, {vol.Required("member_ids"): [str], vol.Required("starts_on"): str, vol.Required("households"): [str], vol.Optional("days_per_block", default=7): vol.All(int, vol.Range(min=1, max=365))}),
+    "add_reminder": (add_reminder, {
+        vol.Required("title"): str,
+        vol.Required("due_at"): str,
+        vol.Optional("member_ids", default=[]): [str],
+        vol.Optional("message", default=""): str,
+    }),
+    "complete_reminder": (complete_reminder, {
+        vol.Required("reminder_id"): str,
+        vol.Optional("member_id"): str,
+        vol.Optional("completed", default=True): bool,
+    }),
     "review_redemption": (review_redemption, {vol.Required("redemption_id"): str, vol.Required("status"): vol.In(["approved", "fulfilled", "declined"])}),
     "edit_record": (edit_record, {vol.Required("collection"): str, vol.Required("record_id"): str, vol.Required("changes"): dict}),
     "delete_record": (delete_record, {vol.Required("collection"): str, vol.Required("record_id"): str}),
@@ -194,6 +206,11 @@ async def websocket_state(hass, connection, msg):
         data["chores"] = [c for c in data["chores"] if allowed in c["assignee_ids"]]
         data["completions"] = [c for c in data["completions"] if c["member_id"] == allowed]
         data["transactions"] = [t for t in data["transactions"] if t["member_id"] == allowed]
+        data["reminders"] = [
+            reminder for reminder in data.get("reminders", [])
+            if not reminder.get("member_ids")
+            or allowed in reminder["member_ids"]
+        ]
         data["redemptions"] = [r for r in data.get("redemptions", []) if r["member_id"] == allowed]
         data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
         data["presence"] = {allowed: data.get("presence", {}).get(allowed, False)}
@@ -328,7 +345,7 @@ def register_api(hass):
             })
             @websocket_api.async_response
             async def handler(hass, connection, msg):
-                if not connection.user.is_admin and name not in ("claim_chore", "redeem_reward", "complete_routine_step", "set_presence"):
+                if not connection.user.is_admin and name not in ("claim_chore", "redeem_reward", "complete_routine_step", "set_presence", "complete_reminder"):
                     connection.send_error(msg["id"], "unauthorized", "Administrator required")
                     return
                 try:
