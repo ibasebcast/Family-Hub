@@ -19,6 +19,7 @@ from .announcements import add_announcement, remove_announcement
 from .settings import update_settings
 from .editing import edit_record, delete_record
 from .calendar_adapter import collect_calendar_events
+from .permissions import can_act_as_member, linked_member
 
 COMMANDS = {
     "edit_record": (edit_record, {vol.Required("collection"): str, vol.Required("record_id"): str, vol.Required("changes"): dict}),
@@ -207,7 +208,7 @@ def register_api(hass):
             })
             @websocket_api.async_response
             async def handler(hass, connection, msg):
-                if not connection.user.is_admin:
+                if not connection.user.is_admin and name not in ("claim_chore", "redeem_reward", "complete_routine_step", "set_presence"):
                     connection.send_error(msg["id"], "unauthorized", "Administrator required")
                     return
                 try:
@@ -216,8 +217,12 @@ def register_api(hass):
                     async with hass.data[DOMAIN + "_mutation_lock"]:
                         snapshot = await store.snapshot()
                         kwargs = {k: v for k, v in msg.items() if k not in ("id", "type")}
+                        if not can_act_as_member(snapshot, connection.user, kwargs.get("member_id")):
+                            if not connection.user.is_admin:
+                                raise ValueError("Not authorized for this household member")
                         if name == "claim_chore":
-                            kwargs["day"] = date.today()
+                            from homeassistant.util import dt as dt_util
+                            kwargs["day"] = dt_util.now().date()
                         updated = function(snapshot, **kwargs)
                         await store.save(updated)
                     connection.send_result(msg["id"], {"success": True})
