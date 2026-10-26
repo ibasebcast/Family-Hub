@@ -9,6 +9,7 @@ from .api import register_api
 from .const import DOMAIN
 from .storage import HouseholdStorage
 from .frontend import register_frontend
+from .dashboard_manager import async_ensure_dashboards_safely
 
 
 async def async_setup(hass, config):
@@ -24,6 +25,10 @@ async def async_setup_entry(hass, entry):
     store = HouseholdStorage(hass)
     await store.load()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = store
+    # The integration is usable immediately: the shared dashboard is created
+    # on first setup and missing personal dashboards are created on upgrades.
+    # Existing, user-edited dashboards are never overwritten.
+    await async_ensure_dashboards_safely(hass, store.data.get("members", []))
     return True
 
 
