@@ -21,6 +21,7 @@ from .editing import edit_record, delete_record
 from .calendar_adapter import collect_calendar_events
 from .permissions import can_act_as_member, linked_member
 from .reward_requests import review_redemption
+from .custody import add_rotation, rotation_schedule
 
 COMMANDS = {
     "review_redemption": (review_redemption, {vol.Required("redemption_id"): str, vol.Required("status"): vol.In(["approved", "fulfilled", "declined"])}),
