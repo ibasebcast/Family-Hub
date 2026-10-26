@@ -152,6 +152,24 @@ async def websocket_export(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_state", str(exc))
 
 
+@websocket_api.websocket_command({vol.Required("type"): "family_hub/calendar", vol.Optional("days", default=30): vol.All(int, vol.Range(min=1, max=366))})
+@websocket_api.async_response
+async def websocket_calendar(hass, connection, msg):
+    """Return upcoming events from selected Home Assistant calendars."""
+    try:
+        data = await _store(hass).snapshot()
+        if not connection.user.is_admin and not any(
+            member.get("ha_user_id") == connection.user.id
+            for member in data["members"]
+        ):
+            connection.send_error(msg["id"], "unauthorized", "No linked member")
+            return
+        events = await collect_calendar_events(hass, data.get("calendar_entities", []), days=msg["days"])
+        connection.send_result(msg["id"], events)
+    except (ValueError, KeyError) as exc:
+        connection.send_error(msg["id"], "calendar_error", str(exc))
+
+
 def register_api(hass):
     """Register commands once during integration setup."""
     websocket_api.async_register_command(hass, websocket_state)
