@@ -31,6 +31,7 @@ def empty_household():
         "room_entities": {},
         "announcements": [],
         "rotations": [],
+        "reminders": [],
         "calendar_entities": [],
     }
 
