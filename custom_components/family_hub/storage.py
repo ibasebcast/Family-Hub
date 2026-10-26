@@ -8,6 +8,7 @@ import asyncio
 from copy import deepcopy
 from homeassistant.helpers.storage import Store
 from .const import STORAGE_KEY, STORAGE_VERSION
+from .migrations import migrate_household
 
 
 def empty_household():
@@ -24,6 +25,12 @@ def empty_household():
         "meals": [],
         "shopping": [],
         "settings": {"currency_name": "Points"},
+        "redemptions": [],
+        "routine_completions": [],
+        "presence": {},
+        "room_entities": {},
+        "announcements": [],
+        "calendar_entities": [],
     }
 
 
@@ -41,9 +48,10 @@ class HouseholdStorage:
         if saved is not None:
             if not isinstance(saved, dict):
                 raise ValueError("Family Hub storage has an unexpected format")
-            if saved.get("schema_version") != STORAGE_VERSION:
-                raise ValueError("Storage migration required; existing data was preserved")
-            self.data = {**empty_household(), **saved}
+            migrated = migrate_household(saved)
+            self.data = {**empty_household(), **migrated}
+            if migrated != saved:
+                await self._store.async_save(self.data)
         return deepcopy(self.data)
 
     async def snapshot(self):
