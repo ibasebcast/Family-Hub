@@ -176,3 +176,76 @@ async def test_rotation_schedule_only_exposes_linked_member():
         assert {r["rotation_id"] for r in admin.result[1]} == {"ra", "rb"}
     finally:
         api._store = original_store
+
+
+@pytest.mark.asyncio
+async def test_frontend_registers_all_dashboard_assets(monkeypatch):
+    from custom_components.family_hub import frontend
+
+    registered_paths = []
+    resources_created = []
+
+    class FakeResources:
+        async def async_load(self):
+            pass
+
+        def async_items(self):
+            return []
+
+        async def async_create_item(self, item):
+            resources_created.append(item)
+
+    http = SimpleNamespace(async_register_static_paths=AsyncMock(
+        side_effect=lambda paths: registered_paths.extend(paths)
+    ))
+    hass = SimpleNamespace(http=http, data={
+        "lovelace": SimpleNamespace(resources=FakeResources())
+    })
+    await frontend.register_frontend(hass)
+    assert len(registered_paths) == len(frontend.FILES)
+    assert len(resources_created) == len(frontend.FILES)
+    assert {item["url"] for item in resources_created} == {
+        "/family_hub_static/" + name for name in frontend.FILES
+    }
+    assert all(item["res_type"] == "module" for item in resources_created)
+
+
+def test_every_websocket_command_has_schema():
+    import voluptuous as vol
+
+    assert api.COMMANDS
+    for name, (operation, fields) in api.COMMANDS.items():
+        assert callable(operation), name
+        assert isinstance(fields, dict), name
+        schema = vol.Schema({vol.Required("type"): "family_hub/" + name, **fields})
+        assert schema is not None
+
+
+def test_backend_domain_workflow_approval_redemption_and_refund():
+    from datetime import date
+    from custom_components.family_hub.household import (
+        add_member, add_chore, add_reward, claim_chore, review_chore, redeem_reward
+    )
+    from custom_components.family_hub.reward_requests import review_redemption
+    from custom_components.family_hub.ledger import balance
+
+    data = empty_household()
+    data = add_member(data, name="Adult", role="adult")
+    data = add_member(data, name="Member", role="child")
+    adult, member = [item["id"] for item in data["members"]]
+    data = add_chore(data, title="Task", assignee_ids=[member],
+                     points=25, approval_required=True)
+    data = add_reward(data, title="Reward", cost=20)
+    data = claim_chore(data, chore_id=data["chores"][0]["id"],
+                       member_id=member, day=date(2026, 10, 26))
+    assert balance(data["transactions"], member) == 0
+    data = review_chore(data, completion_id=data["completions"][0]["id"],
+                        approver_id=adult, approved=True)
+    assert balance(data["transactions"], member) == 25
+    data = redeem_reward(data, member_id=member, reward_id=data["rewards"][0]["id"])
+    assert balance(data["transactions"], member) == 5
+    redemption = data["redemptions"][0]["id"]
+    data = review_redemption(data, redemption_id=redemption, status="declined")
+    assert balance(data["transactions"], member) == 25
+    with pytest.raises(ValueError):
+        review_redemption(data, redemption_id=redemption, status="declined")
