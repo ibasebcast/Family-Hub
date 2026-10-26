@@ -38,6 +38,8 @@ def test_member_templates_have_stable_unique_paths_and_explicit_scope():
     result = templates_for_members(members)
     assert result == templates_for_members(members)
     assert result["family"]["url_path"] == "family-hub"
+    assert result["wall"]["url_path"] == "family-hub-wall"
+    assert result["wall"]["config"]["views"][1]["cards"][0]["read_only"] is True
     assert len(result["members"]) == 2
 
     paths = [entry["url_path"] for entry in result["members"]]
