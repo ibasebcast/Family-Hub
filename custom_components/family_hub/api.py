@@ -14,8 +14,13 @@ from .household import add_chore, add_member, add_reward, claim_chore, review_ch
 from .organizer import add_event, add_meal, add_shopping_item, set_shopping_checked
 from .routines import add_routine, complete_routine_step, set_presence
 from .exports import export_household
+from .room import set_room_entities
 
 COMMANDS = {
+    "set_room_entities": (set_room_entities, {
+        vol.Required("member_id"): str,
+        vol.Required("entity_ids"): [str],
+    }),
     "add_routine": (add_routine, {
         vol.Required("title"): str, vol.Required("member_ids"): [str],
         vol.Required("steps"): [str],
@@ -107,6 +112,7 @@ async def websocket_state(hass, connection, msg):
         data["completions"] = [c for c in data["completions"] if c["member_id"] == allowed]
         data["transactions"] = [t for t in data["transactions"] if t["member_id"] == allowed]
         data["redemptions"] = [r for r in data.get("redemptions", []) if r["member_id"] == allowed]
+        data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
         # Hide records without a defined member-level access model.
         for section in ("events", "meals", "shopping", "routines"):
             data[section] = []
