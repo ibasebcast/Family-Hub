@@ -38,7 +38,7 @@ class HouseholdStorage:
     """Coordinate persistence and avoid concurrent write corruption."""
 
     def __init__(self, hass):
-        self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        self._store = Store(hass, 1, STORAGE_KEY)
         self._lock = asyncio.Lock()
         self.data = empty_household()
 
