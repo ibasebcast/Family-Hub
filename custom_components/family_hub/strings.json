@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Create Family Hub",
+        "description": "Start with an empty household. Add members and features later.",
+        "data": {
+          "name": "Household name"
+        }
+      }
+    }
+  },
+  "abort": {
+    "already_configured": "Family Hub is already configured."
+  }
+}
