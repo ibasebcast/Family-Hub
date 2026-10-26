@@ -198,6 +198,11 @@ async def websocket_state(hass, connection, msg):
         data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
         data["presence"] = {allowed: data.get("presence", {}).get(allowed, False)}
         data["calendar_entities"] = []
+        # Private administrator settings include display-account IDs and
+        # must not be disclosed to ordinary linked members.
+        data["settings"] = {
+            "currency_name": data.get("settings", {}).get("currency_name", "Points")
+        }
         data["rotations"] = [r for r in data.get("rotations", [])
                              if allowed in r.get("member_ids", [])]
         data["routines"] = [r for r in data["routines"] if allowed in r["member_ids"]]
