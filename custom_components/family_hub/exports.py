@@ -8,6 +8,7 @@ LIST_SECTIONS = (
     "members", "chores", "completions", "rewards", "transactions",
     "routines", "events", "meals", "shopping", "redemptions",
     "routine_completions", "announcements", "calendar_entities", "rotations",
+    "reminders",
 )
 MAP_SECTIONS = ("settings", "presence", "room_entities")
 
@@ -25,6 +26,7 @@ def validate_backup(payload):
     if data.get("schema_version") != STORAGE_VERSION:
         raise ValueError("Unsupported backup schema version")
     data.setdefault("rotations", [])
+    data.setdefault("reminders", [])
     for key in LIST_SECTIONS:
         if not isinstance(data.get(key), list):
             raise ValueError(f"Backup section {key} must be a list")
@@ -65,6 +67,9 @@ def validate_backup(payload):
         raise ValueError("Backup has orphaned routine completions")
     if any(member not in members for member in data["room_entities"]):
         raise ValueError("Backup has room devices assigned to unknown members")
+    if any(any(member not in members for member in reminder.get("member_ids", []))
+           for reminder in data["reminders"]):
+        raise ValueError("Backup has reminders for unknown members")
     if any(member not in members for member in data["presence"]):
         raise ValueError("Backup has presence records for unknown members")
     return deepcopy(data)

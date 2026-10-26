@@ -145,7 +145,21 @@ class FamilyHubMemberCard extends FamilyHubBase {
       String(d.getDate()).padStart(2,"0")].join("-");
     const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     monday.setDate(monday.getDate() - (monday.getDay()+6)%7);
+    // Calculate rotation by UTC day numbers to avoid DST changing whose
+    // turn it is. Display and claim requests use the local calendar day.
+    const utcDay = key => Math.floor(Date.parse(key + "T00:00:00Z") / 86400000);
+    const away = data.presence?.[member.id] === false;
     const rows = chores.map(chore => {
+      const rotating = Boolean(chore.rotation_days && chore.rotation_start);
+      const dayIndex = rotating
+        ? Math.floor((utcDay(dateKey(today)) - utcDay(chore.rotation_start))
+          / chore.rotation_days)
+        : 0;
+      const owner = rotating
+        ? chore.assignee_ids[((dayIndex % chore.assignee_ids.length)
+          + chore.assignee_ids.length) % chore.assignee_ids.length]
+        : null;
+      const inactive = rotating && owner !== member.id;
       const period = chore.recurrence === "once" ? "once" :
         chore.recurrence === "weekly" ? dateKey(monday) : dateKey(today);
       const claimed = (data.completions || []).find(c => c.chore_id === chore.id &&
@@ -153,7 +167,10 @@ class FamilyHubMemberCard extends FamilyHubBase {
       return `<div class="item">
       <div><strong>${escapeHtml(chore.title)}</strong>
       <div class="muted">${escapeHtml(chore.recurrence)} · ${chore.points} points</div></div>
-      <button data-chore="${escapeHtml(chore.id)}" ${claimed ? "disabled" : ""}>${claimed ? escapeHtml(claimed.status) : "Claim"}</button>
+      <button data-chore="${escapeHtml(chore.id)}"
+        ${claimed || inactive || away ? "disabled" : ""}>${away ? "Paused while away"
+          : inactive ? "Not your turn"
+          : claimed ? escapeHtml(claimed.status) : "Claim"}</button>
     </div>`; }).join("");
     const total = (data.transactions || []).filter(t => t.member_id === member.id)
       .reduce((sum,t) => sum + t.amount,0);

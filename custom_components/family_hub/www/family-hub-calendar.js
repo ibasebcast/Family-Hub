@@ -1,8 +1,17 @@
-/** Family Hub calendar: month, week and agenda with local and HA events. */
+/** Family Hub calendar: day, week, month and agenda with local and HA events. */
 (() => {
   const escape = value => String(value ?? "").replace(/[&<>"']/g, c =>
     ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const dayKey = value => String(value || "").slice(0,10);
+  // Calendar days are local dates, including events received in UTC from HA.
+  // All-day YYYY-MM-DD strings must not shift with timezone conversion.
+  const dayKey = value => {
+    const raw = String(value || "");
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw.slice(0,10);
+    return [date.getFullYear(), String(date.getMonth()+1).padStart(2,"0"),
+      String(date.getDate()).padStart(2,"0")].join("-");
+  };
   const asDate = value => new Date(value.length===10 ? value+"T12:00:00" : value);
   class FamilyHubCalendarCard extends HTMLElement {
     constructor() {
@@ -81,6 +90,16 @@
           </div>`;
         }
         body+="</div>";
+      }else if(this.view==="day"){
+        // Use local calendar-day keys, regardless of the browser locale.
+        const dateKey=[cursor.getFullYear(),String(cursor.getMonth()+1).padStart(2,"0"),
+          String(cursor.getDate()).padStart(2,"0")].join("-");
+        const dayItems=dayEvents(dateKey);
+        body=dayItems.map(event=>`<div class="agenda">
+          <b>${escape(new Date(event.starts_at).toLocaleTimeString(undefined,
+            {hour:"numeric",minute:"2-digit"}))}</b>
+          <span>${escape(event.title)}<small>${escape(event.source)}</small></span>
+        </div>`).join("") || "<p>No events scheduled for this day.</p>";
       }else{
         const today=new Date(cursor);today.setHours(0,0,0,0);
         const horizon=new Date(today);horizon.setDate(today.getDate()+30);
@@ -118,15 +137,16 @@
         <button id="today">Today</button>
         <button id="next" aria-label="Next">›</button>
         <select id="view" aria-label="Calendar view">
-          ${["month","week","agenda"].map(view=>`<option value="${view}"
+          ${["day","week","month","agenda"].map(view=>`<option value="${view}"
             ${this.view===view?"selected":""}>${view}</option>`).join("")}
         </select><button id="refresh">Refresh</button></header>
         ${this.error?`<p class="error" role="alert">${escape(this.error)}</p>`:""}
         ${body}
-        <form id="add"><input name="title" placeholder="New event" required>
+        ${this.config?.read_only ? "" : `<form id="add">
+          <input name="title" placeholder="New event" required>
           <input type="datetime-local" name="start" required>
           <input type="datetime-local" name="end" required>
-          <button>Add event</button></form>
+          <button>Add event</button></form>`}
       </article>`;
       const root=this.shadowRoot;
       root.querySelector("#prev").onclick=()=>this.shift(-1);
@@ -136,7 +156,7 @@
       root.querySelector("#view").onchange=event=>{
         this.view=event.target.value;this.render();
       };
-      root.querySelector("#add").onsubmit=async event=>{
+      if (!this.config?.read_only) root.querySelector("#add").onsubmit=async event=>{
         event.preventDefault();
         const form=event.target.elements;
         const start=new Date(form.start.value),end=new Date(form.end.value);
@@ -154,5 +174,5 @@
   window.customCards=window.customCards||[];
   if(!window.customCards.some(card=>card.type==="family-hub-calendar-card"))
     window.customCards.push({type:"family-hub-calendar-card",
-      name:"Family Hub Calendar",description:"Month, week and agenda family calendar"});
+      name:"Family Hub Calendar",description:"Day, week, month and agenda family calendar"});
 })();

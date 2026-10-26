@@ -10,6 +10,7 @@ FIELDS = {
     "meals": {"title", "day", "meal_type", "notes"},
     "events": {"title", "starts_at", "ends_at", "member_ids", "notes"},
     "announcements": {"title", "message", "expires_at"},
+    "reminders": {"title", "message", "due_at", "member_ids", "completed"},
 }
 
 
@@ -80,6 +81,8 @@ def delete_record(data, *, collection, record_id):
             raise ValueError("Member has assigned household rotations")
         if any(record_id in e.get("member_ids", []) for e in result.get("events", [])):
             raise ValueError("Member has assigned calendar events")
+        if any(record_id in e.get("member_ids", []) for e in result.get("reminders", [])):
+            raise ValueError("Member has assigned reminders")
     if collection == "chores" and any(c["chore_id"] == record_id for c in result["completions"]):
         raise ValueError("Chore has completion history")
     if collection == "rewards" and any(r["reward_id"] == record_id for r in result.get("redemptions", [])):

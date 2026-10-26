@@ -1,69 +1,95 @@
 # Family Hub for Home Assistant
 
-Family Hub is a Home Assistant integration for household schedules, chores, rewards,
-meal planning, shopping, and individual member room dashboards.
+Family Hub is an open-source HACS-ready custom integration for managing family
+calendars, chores, rewards, routines, rotating schedules, shopping, meals and
+per-member Home Assistant room controls and scheduled reminders.
 
-> **Status:** Active development. These changes are being validated before an
-> initial installable release. Existing household storage is preserved on updates.
+> **Development status:** This is not yet a stable release. The first release
+> remains gated on successful Home Assistant installation testing. Existing
+> household data is preserved across updates.
 
-## What works in the current development version
+## Built-in experiences
 
-- Configure household members, chores, rewards, and calendar sources in Home Assistant.
-- Assign real Home Assistant lights, fans, switches, covers, climate entities, and
-  sensors to each member through the **Rooms** tab of the management card.
-- Use a member room card to view device states and control supported devices.
-  Home Assistant service permissions still apply.
-- Create **editable storage-mode dashboards** through the **Dashboards** tab.
-  The templates provide a shared family dashboard plus a private-link dashboard
-  for each member, with My Day and My Room views.
-- Manage schedules, shopping, meals, announcements, approvals, and backups with
-  the registered Family Hub cards.
+Family Hub creates these editable storage-mode Home Assistant dashboards when
+its integration is configured. **You do not have to create or paste any YAML.**
 
-## First-time dashboard setup
+- **Family Hub** (`/family-hub/`): An administrator dashboard with household
+  overview, calendar, meals, shopping, scheduled reminders, routines,
+  custody schedules, rewards,
+  approvals, settings, room device assignments and household backup/restore.
+- **Family Hub Display** (`/family-hub-wall/`): A read-only shared home
+  overview and calendar for a wall tablet. Administrators explicitly authorize
+  which Home Assistant accounts may see shared household information.
+- **Individual member dashboards** (`/family-hub-member-…/`): My Day with
+  chores, point balance, rewards, assigned reminders, daily routine checklist and the member's
+  rotation schedule, plus My Room for devices selected in Home Assistant.
 
-After the integration is configured and its Lovelace resources are available,
-place a **Family Hub Management** card on an existing dashboard. The card type is:
+New member dashboards are created when members are added or restored from
+backup. Existing dashboards, including user-customized layouts, are never
+overwritten by Family Hub during later integration loads.
 
-```yaml
-type: custom:family-hub-manage-card
-```
+## Setup and day-to-day use
 
-Open the **Dashboards** tab and select **Create missing dashboards**. Family
-Hub uses Home Assistant's dashboard create and configuration APIs, so the
-resulting dashboards are fully editable in the Home Assistant dashboard editor.
-It never replaces an existing dashboard with the same URL. Run the action
-again after adding members to create any new individual dashboards.
+After installing the custom repository through HACS, add **Family Hub** under
+**Settings → Devices & Services → Add Integration**. Choose a household name.
+The integration registers its cards and creates the missing dashboards
+automatically. Open Family Hub in the sidebar to configure members and their
+features.
 
-The shared `/family-hub/` dashboard is administrator-only and shown in the
-sidebar. Member dashboards use stable `/family-hub-member-…/` URLs, are
-hidden from the sidebar by default, and display only records permitted by
-the authenticated Family Hub API. An admin can copy a member's dashboard link
-from the management card. A member must be linked to a Home Assistant user
-to access personal data. Device controls remain subject to Home Assistant's
-normal device permissions.
+On the dashboard's **Manage** tab, configure household members, optional Home
+Assistant user links, chore recurrence, optional rotating assignees, reward
+costs, calendar entity sources and customizable member room devices. Use the
+**Dashboards** management tab only to repair any *missing* dashboards. A repair
+never replaces existing layouts.
 
-**Resource mode:** Static dashboard modules are registered automatically
-when Home Assistant manages Lovelace resources in storage mode. If Lovelace
-resources are managed using YAML, add the provided JavaScript module paths to
-the YAML resources list instead. Dashboard creation itself uses Home Assistant
-storage-mode dashboard APIs.
+For a read-only tablet, create or choose a separate Home Assistant user for the
+display, then add that user's ID in Family Hub's Settings tab. The wall dashboard
+shows only intentionally shared records and calendar data. The wall account
+cannot use the administrative mutation API. Its dashboard is hidden from the
+sidebar by default but can be accessed at `/family-hub-wall/`.
 
-## Project principles
+Chore assignments support once, daily and weekly resets, optional adult approval,
+Family Hub point balances and rewards. Rotating assignments switch between
+selected members at the configured interval. Routines have independently
+tracked daily checklist steps. Home/away status can be updated through a card;
+while a member is away, their chore claims and point awards are paused.
 
-- **Data stays local.** Household data is held in Home Assistant's private
-  storage, not shipped in sample files or committed to this repository.
-- **UI-first controls.** Setup and everyday configuration are performed through
-  Home Assistant cards and settings wherever possible.
-- **Safe updates.** Dashboard creation is create-only, and existing customized
-  dashboards are never overwritten by the installer.
-- **Scoped access.** Administrators manage household settings; linked members
-  can view and act on their own supported records.
-- **Readable implementation.** Backend features are independent modules with
-  focused tests, and frontend cards use standard browser APIs without CDNs.
+Administrators can schedule reminders for the household or individual members.
+A native Home Assistant background timer checks due dates and creates
+persistent notifications. Stable notification IDs avoid duplicate alerts,
+and missed reminders are recovered after Home Assistant restarts.
+Linked members can complete reminders assigned to them.
 
-## Development checks
+The calendar offers day, week, month and agenda views. Home Assistant calendar
+entities, including supported Google Calendar entities, can appear beside
+locally created Family Hub events. Calendar access uses Home
+Assistant's existing configured calendar integrations and does not require
+separate Google credentials in Family Hub.
 
-GitHub Actions verifies repository contents and metadata, compiles Python
-modules, runs `pytest`, parses JavaScript, and executes Node-based frontend
-behavior tests. A green CI run verifies those automated checks; a real
-Home Assistant installation should also be used for end-to-end testing.
+## Safety and compatibility
+
+- Household data is stored in Home Assistant's private storage directory.
+  Family Hub never includes household members or personal demo data in its
+  distributed code, tests or documentation.
+- A family display can be opened only by administrators or accounts explicitly
+  approved for wall-display access. Member dashboards are scoped to the linked
+  member through the authenticated WebSocket API.
+- Dashboard creation uses Home Assistant's live Lovelace collection with
+  listener notifications, not direct edits to `.storage`.
+- Lovelace JavaScript modules register automatically with storage-managed
+  resources. Installations that manage Lovelace resources through YAML must
+  add those module URLs in the YAML resources configuration.
+- HACS updates preserve saved Family Hub household data, settings and existing
+  dashboard edits.
+- Browser device actions remain subject to Home Assistant permissions.
+
+## Quality gates
+
+GitHub Actions audits every tracked file, runs Python tests, validates all
+JavaScript syntax and exercises critical UI flows with Node tests. The
+automatic-dashboard tests cover fresh setup, idempotent reloads, new members,
+previously customized dashboards, rollback on failures and privacy boundaries.
+
+Automated tests do **not** replace an end-to-end smoke test in a running Home
+Assistant instance. No stable release is planned until that verification is
+complete.

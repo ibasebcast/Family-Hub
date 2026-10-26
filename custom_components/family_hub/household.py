@@ -31,7 +31,8 @@ def add_member(data, *, name, role="child", ha_user_id=None, color="#64748b"):
 
 
 def add_chore(data, *, title, assignee_ids, points=0, recurrence="daily",
-              approval_required=False, description=""):
+              approval_required=False, description="", rotation_days=None,
+              rotation_start=None):
     """Create a chore only when every assignee exists."""
     if len(assignee_ids) != len(set(assignee_ids)):
         raise ValueError("Duplicate assignees are not allowed")
@@ -39,7 +40,10 @@ def add_chore(data, *, title, assignee_ids, points=0, recurrence="daily",
         raise ValueError("Unknown chore assignee")
     result = deepcopy(data)
     result["chores"].append(
-        Chore(title, assignee_ids, points, recurrence, approval_required, description).to_dict()
+        Chore(
+            title, assignee_ids, points, recurrence, approval_required,
+            description, rotation_days, rotation_start,
+        ).to_dict()
     )
     return result
 
@@ -51,11 +55,28 @@ def add_reward(data, *, title, cost, description=""):
     return result
 
 
+def active_rotating_assignee(chore, day: date):
+    """Return whose turn it is, or None for chores assigned to everyone."""
+    if not chore.get("rotation_days"):
+        return None
+    anchor = date.fromisoformat(chore["rotation_start"])
+    elapsed = (day - anchor).days
+    index = (elapsed // chore["rotation_days"]) % len(chore["assignee_ids"])
+    return chore["assignee_ids"][index]
+
+
 def claim_chore(data, *, chore_id, member_id, day: date):
     """Claim one occurrence; award points immediately only if no approval is needed."""
     chore = _chore(data, chore_id)
     if chore is None or member_id not in chore["assignee_ids"]:
         raise ValueError("Chore is not assigned to this member")
+    # Presence false means the member is away. Do not accumulate chore
+    # completions or credit while an assigned member is away.
+    if data.get("presence", {}).get(member_id) is False:
+        raise ValueError("Chore claims are paused while this member is away")
+    current_assignee = active_rotating_assignee(chore, day)
+    if current_assignee is not None and current_assignee != member_id:
+        raise ValueError("This rotating chore is assigned to another member today")
     period = period_key(chore["recurrence"], day)
     if any(c["chore_id"] == chore_id and c["member_id"] == member_id
            and c["period"] == period and c["status"] != "rejected"

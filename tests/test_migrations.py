@@ -13,7 +13,9 @@ def test_v1_migration_preserves_records_and_source():
     source["future_extension"] = {"enabled": True}
     original = deepcopy(source)
     migrated = migrate_household(source)
-    assert migrated["schema_version"] == 2
+    assert migrated["schema_version"] == 3
+    assert migrated["reminders"] == []
+    assert migrated["settings"]["display_user_ids"] == []
     assert migrated["members"] == source["members"]
     assert migrated["future_extension"] == source["future_extension"]
     assert source == original
@@ -33,3 +35,17 @@ def test_empty_household_isolation():
     first = empty_household()
     first["members"].append({"id": "one"})
     assert empty_household()["members"] == []
+
+
+def test_v2_migration_backfills_reminders_without_resetting_household():
+    source = empty_household()
+    source["schema_version"] = 2
+    source.pop("reminders")
+    source["settings"].pop("display_user_ids")
+    source["members"] = [{"id": "generic-member", "name": "Generic"}]
+    migrated = migrate_household(source)
+    assert migrated["schema_version"] == 3
+    assert migrated["members"] == source["members"]
+    assert migrated["reminders"] == []
+    assert migrated["settings"]["display_user_ids"] == []
+    assert source["schema_version"] == 2

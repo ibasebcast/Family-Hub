@@ -25,6 +25,9 @@ def test_family_template_contains_only_registered_custom_cards():
     assert "family-hub-manage-card" in card_names
     assert "family-hub-approvals-card" in card_names
     assert "family-hub-shopping-card" in card_names
+    assert "family-hub-routines-card" in card_names
+    assert "family-hub-custody-card" in card_names
+    assert "family-hub-reminders-card" in card_names
     assert "family-hub.js" in FILES
 
 
@@ -36,6 +39,8 @@ def test_member_templates_have_stable_unique_paths_and_explicit_scope():
     result = templates_for_members(members)
     assert result == templates_for_members(members)
     assert result["family"]["url_path"] == "family-hub"
+    assert result["wall"]["url_path"] == "family-hub-wall"
+    assert result["wall"]["config"]["views"][1]["cards"][0]["read_only"] is True
     assert len(result["members"]) == 2
 
     paths = [entry["url_path"] for entry in result["members"]]
@@ -47,7 +52,10 @@ def test_member_templates_have_stable_unique_paths_and_explicit_scope():
         views = item["config"]["views"]
         assert [view["path"] for view in views] == ["my-day", "my-room"]
         assert views[0]["cards"] == [
-            {"type": "custom:family-hub-member-card", "member_id": member["id"]}
+            {"type": "custom:family-hub-member-card", "member_id": member["id"]},
+            {"type": "custom:family-hub-routines-card", "member_id": member["id"]},
+            {"type": "custom:family-hub-custody-card", "member_id": member["id"]},
+            {"type": "custom:family-hub-reminders-card", "member_id": member["id"]},
         ]
         assert views[1]["cards"] == [
             {"type": "custom:family-hub-room-card", "member_id": member["id"]}

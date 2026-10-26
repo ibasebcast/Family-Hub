@@ -70,12 +70,26 @@ async def test_integration_setup_registers_api_and_frontend(monkeypatch):
 async def test_setup_entry_loads_and_unload_preserves_storage(monkeypatch):
     store = SimpleNamespace(load=AsyncMock(), data={"existing": True})
     monkeypatch.setattr("custom_components.family_hub.HouseholdStorage", lambda hass: store)
+    install = AsyncMock(return_value=1)
+    monkeypatch.setattr("custom_components.family_hub.async_ensure_dashboards_safely", install)
+    notify = AsyncMock()
+    unsubscribed = []
+    monkeypatch.setattr(
+        "custom_components.family_hub.async_notify_due_reminders_safely", notify
+    )
+    monkeypatch.setattr(
+        "custom_components.family_hub.async_track_time_interval",
+        lambda hass, callback, interval: lambda: unsubscribed.append(True)
+    )
     hass = SimpleNamespace(data={})
     entry = SimpleNamespace(entry_id="entry-1")
     assert await async_setup_entry(hass, entry) is True
     store.load.assert_awaited_once()
+    install.assert_awaited_once_with(hass, [])
+    notify.assert_awaited_once_with(hass)
     assert hass.data[DOMAIN]["entry-1"] is store
     assert await async_unload_entry(hass, entry) is True
+    assert unsubscribed == [True]
     assert hass.data[DOMAIN] == {}
 
 
@@ -176,6 +190,60 @@ async def test_rotation_schedule_only_exposes_linked_member():
         assert {r["rotation_id"] for r in admin.result[1]} == {"ra", "rb"}
     finally:
         api._store = original_store
+
+
+@pytest.mark.asyncio
+async def test_backup_restore_creates_missing_member_dashboards(monkeypatch):
+    """Restoring members provisions personal views after data is saved."""
+    data = empty_household()
+    data["members"] = [
+        {"id": "member-a", "name": "Generic Member", "role": "child"}
+    ]
+    hass = fake_hass(empty_household())
+    install = AsyncMock()
+    monkeypatch.setattr(api, "async_ensure_dashboards_safely", install)
+    monkeypatch.setattr(api, "_store", lambda h: h.data[DOMAIN]["entry"])
+    admin = FakeConnection(user("admin", True))
+    await api.websocket_import.__wrapped__(hass, admin, {
+        "id": 4, "backup": data, "confirm_replace": True
+    })
+    assert admin.error is None
+    assert admin.result[1] == {"success": True}
+    assert hass.data[DOMAIN]["entry"].save_count == 1
+    install.assert_awaited_once_with(hass, data["members"])
+
+
+@pytest.mark.asyncio
+async def test_adding_member_provisions_dashboard_without_overwriting_data(monkeypatch):
+    """Adding members retains one write and triggers the missing-view repair."""
+    data = empty_household()
+    hass = fake_hass(data)
+    install = AsyncMock()
+    monkeypatch.setattr(api, "async_ensure_dashboards_safely", install)
+    monkeypatch.setattr(api, "_store", lambda h: h.data[DOMAIN]["entry"])
+    registered = []
+
+    # API registers one generated handler per mutation. Capture add_member.
+    monkeypatch.setattr(
+        api.websocket_api, "async_register_command",
+        lambda hass_obj, handler: registered.append(handler)
+    )
+    api.register_api(hass)
+    handler = next(
+        cmd for cmd in registered
+        if getattr(cmd, "_ws_command", None) == "family_hub/add_member"
+    )
+    connection = FakeConnection(user("admin", True))
+    await handler.__wrapped__(hass, connection, {
+        "id": 1, "type": "family_hub/add_member",
+        "name": "Generic Member", "role": "child"
+    })
+    assert connection.error is None
+    assert connection.result[1] == {"success": True}
+    store = hass.data[DOMAIN]["entry"]
+    assert store.save_count == 1
+    assert len(store.data["members"]) == 1
+    install.assert_awaited_once_with(hass, store.data["members"])
 
 
 @pytest.mark.asyncio

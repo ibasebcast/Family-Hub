@@ -116,7 +116,7 @@
         const templates = await this._hass.callWS({type:"family_hub/dashboard_templates"});
         const existing = await this._hass.callWS({type:"lovelace/dashboards/list"});
         const paths = new Set(existing.map(item => item.url_path));
-        const requested = [templates.family, ...templates.members];
+        const requested = [templates.family, templates.wall, ...templates.members];
         let created = 0;
         let skipped = 0;
         for (const item of requested) {
@@ -157,11 +157,12 @@
     dashboardsEditor() {
       return `<section>
         <h3>Editable Home Assistant dashboards</h3>
-        <p>Create a family dashboard with planning and management views plus
-          an individual dashboard for each household member. Previously
-          created dashboards are left unchanged.</p>
+        <p>Family Hub creates an administrator dashboard, an optional read-only
+          wall-tablet display, and a personal dashboard for every member.
+          Authorize display accounts under Settings. Existing dashboards
+          retain all user edits.</p>
         <button id="create-dashboards" type="button" ${this.installing ? "disabled" : ""}>
-          ${this.installing ? "Creating dashboards…" : "Create missing dashboards"}
+          ${this.installing ? "Creating dashboards…" : "Repair missing dashboards"}
         </button>
         ${this.dashboardLinks.length ? `<ul class="dashboard-links">${this.dashboardLinks.map(
           item => `<li><a href="/${esc(item.path)}/">${esc(item.title)}</a></li>`
@@ -194,7 +195,15 @@
           <label>Assign to<select name="assignee_ids" multiple required size="4">
           ${members.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("")}
           </select></label><label class="checkbox-line"><input type="checkbox"
-          name="approval_required">Requires approval</label>`;
+          name="approval_required">Requires approval</label>
+          <label class="checkbox-line"><input type="checkbox"
+          name="rotating">Rotate assignment between selected members</label>
+          <label>Days per rotation<input type="number" name="rotation_days"
+            value="7" min="1" max="365"></label>
+          <label>Rotation start date<input type="date" name="rotation_start"
+            value="${[new Date().getFullYear(),
+              String(new Date().getMonth()+1).padStart(2,"0"),
+              String(new Date().getDate()).padStart(2,"0")].join("-")}"></label>`;
         list = chores.map(c => `<div class="line"><strong>${esc(c.title)}</strong>
           <small>${Number(c.points) || 0} points · ${esc(c.recurrence)}</small></div>`).join("");
       } else if (this.tab === "rewards") {
@@ -205,7 +214,10 @@
         form = field("currency_name", "Points currency name", "text", true,
           data.settings?.currency_name || "Points")
           + `<label>Calendar entities (comma separated)<input name="calendar_entities"
-          value="${esc((data.calendar_entities || []).join(", "))}"></label>`;
+          value="${esc((data.calendar_entities || []).join(", "))}"></label>
+          <label>Home Assistant user IDs allowed to view the read-only wall display
+            (comma separated)<input name="display_user_ids"
+            value="${esc((data.settings?.display_user_ids || []).join(", "))}"></label>`;
         list = "<p>Choose Home Assistant calendar entities to show beside local family events.</p>";
       } else if (this.tab === "rooms") {
         list = this.roomEditor(members);
@@ -308,7 +320,11 @@
           title:value("title"),points:Number(value("points")),
           recurrence:value("recurrence"),
           approval_required:f.namedItem("approval_required").checked,
-          assignee_ids:[...f.namedItem("assignee_ids").selectedOptions].map(o => o.value)
+          assignee_ids:[...f.namedItem("assignee_ids").selectedOptions].map(o => o.value),
+          ...(f.namedItem("rotating").checked ? {
+            rotation_days:Number(value("rotation_days")),
+            rotation_start:value("rotation_start")
+          } : {})
         });
         if (this.tab === "rewards") return this.command("add_reward", {
           title:value("title"),cost:Number(value("cost"))
@@ -316,6 +332,8 @@
         if (this.tab === "settings") return this.command("update_settings", {
           currency_name:value("currency_name"),
           calendar_entities:value("calendar_entities").split(",")
+            .map(s => s.trim()).filter(Boolean),
+          display_user_ids:value("display_user_ids").split(",")
             .map(s => s.trim()).filter(Boolean)
         });
       };

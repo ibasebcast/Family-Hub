@@ -23,9 +23,23 @@ from .permissions import can_act_as_member, linked_member
 from .reward_requests import review_redemption
 from .custody import add_rotation, rotation_schedule
 from .dashboard_templates import templates_for_members
+from .dashboard_manager import async_ensure_dashboards_safely
+from .storage import empty_household
+from .reminders import add_reminder, complete_reminder
 
 COMMANDS = {
     "add_rotation": (add_rotation, {vol.Required("member_ids"): [str], vol.Required("starts_on"): str, vol.Required("households"): [str], vol.Optional("days_per_block", default=7): vol.All(int, vol.Range(min=1, max=365))}),
+    "add_reminder": (add_reminder, {
+        vol.Required("title"): str,
+        vol.Required("due_at"): str,
+        vol.Optional("member_ids", default=[]): [str],
+        vol.Optional("message", default=""): str,
+    }),
+    "complete_reminder": (complete_reminder, {
+        vol.Required("reminder_id"): str,
+        vol.Optional("member_id"): str,
+        vol.Optional("completed", default=True): bool,
+    }),
     "review_redemption": (review_redemption, {vol.Required("redemption_id"): str, vol.Required("status"): vol.In(["approved", "fulfilled", "declined"])}),
     "edit_record": (edit_record, {vol.Required("collection"): str, vol.Required("record_id"): str, vol.Required("changes"): dict}),
     "delete_record": (delete_record, {vol.Required("collection"): str, vol.Required("record_id"): str}),
@@ -39,6 +53,7 @@ COMMANDS = {
     "update_settings": (update_settings, {
         vol.Optional("currency_name"): str,
         vol.Optional("calendar_entities"): [str],
+        vol.Optional("display_user_ids"): [str],
     }),
     "set_room_entities": (set_room_entities, {
         vol.Required("member_id"): str,
@@ -87,6 +102,8 @@ COMMANDS = {
         vol.Optional("recurrence", default="daily"): vol.In(["once", "daily", "weekly"]),
         vol.Optional("approval_required", default=False): bool,
         vol.Optional("description", default=""): str,
+        vol.Optional("rotation_days"): vol.All(int, vol.Range(min=1, max=365)),
+        vol.Optional("rotation_start"): str,
     }),
     "add_reward": (add_reward, {
         vol.Required("title"): str,
@@ -114,6 +131,58 @@ def _store(hass):
     return next(iter(entries.values()))
 
 
+def _display_state(data):
+    """Return only shared, read-only information for a kiosk account.
+
+    Member details, audit trails, device controls and pending approvals are
+    deliberately withheld. The administrator must explicitly allowlist each
+    Home Assistant user who should see the shared family display.
+    """
+    state = empty_household()
+    state["members"] = [
+        {"id": member["id"], "name": member["name"],
+         "role": member.get("role", "child")}
+        for member in data["members"]
+    ]
+    state["chores"] = [
+        {"id": chore["id"], "assignee_ids": chore["assignee_ids"]}
+        for chore in data["chores"]
+    ]
+    state["transactions"] = [
+        {"member_id": item["member_id"], "amount": item["amount"]}
+        for item in data["transactions"]
+    ]
+    state["events"] = [
+        {"title": event["title"], "starts_at": event["starts_at"],
+         "ends_at": event["ends_at"]}
+        for event in data["events"]
+    ]
+    state["shopping"] = [
+        {"title": item["title"], "checked": item["checked"],
+         "quantity": item.get("quantity", "1")}
+        for item in data["shopping"]
+    ]
+    state["meals"] = [
+        {"title": item["title"], "day": item["day"],
+         "meal_type": item["meal_type"]}
+        for item in data["meals"]
+    ]
+    state["announcements"] = [
+        {"title": item["title"], "message": item["message"],
+         "expires_at": item.get("expires_at")}
+        for item in data["announcements"]
+    ]
+    state["settings"] = {
+        "currency_name": data.get("settings", {}).get("currency_name", "Points")
+    }
+    return state
+
+
+def _is_display_account(data, user):
+    """Check an explicit user-ID allowlist, never an arbitrary account role."""
+    return user.id in data.get("settings", {}).get("display_user_ids", [])
+
+
 @websocket_api.websocket_command({vol.Required("type"): "family_hub/state"})
 @websocket_api.async_response
 async def websocket_state(hass, connection, msg):
@@ -122,6 +191,9 @@ async def websocket_state(hass, connection, msg):
         data = await _store(hass).snapshot()
         if connection.user.is_admin:
             connection.send_result(msg["id"], data)
+            return
+        if _is_display_account(data, connection.user):
+            connection.send_result(msg["id"], _display_state(data))
             return
         member = next((m for m in data["members"]
                        if m.get("ha_user_id") == connection.user.id), None)
@@ -134,10 +206,20 @@ async def websocket_state(hass, connection, msg):
         data["chores"] = [c for c in data["chores"] if allowed in c["assignee_ids"]]
         data["completions"] = [c for c in data["completions"] if c["member_id"] == allowed]
         data["transactions"] = [t for t in data["transactions"] if t["member_id"] == allowed]
+        data["reminders"] = [
+            reminder for reminder in data.get("reminders", [])
+            if not reminder.get("member_ids")
+            or allowed in reminder["member_ids"]
+        ]
         data["redemptions"] = [r for r in data.get("redemptions", []) if r["member_id"] == allowed]
         data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
         data["presence"] = {allowed: data.get("presence", {}).get(allowed, False)}
         data["calendar_entities"] = []
+        # Private administrator settings include display-account IDs and
+        # must not be disclosed to ordinary linked members.
+        data["settings"] = {
+            "currency_name": data.get("settings", {}).get("currency_name", "Points")
+        }
         data["rotations"] = [r for r in data.get("rotations", [])
                              if allowed in r.get("member_ids", [])]
         data["routines"] = [r for r in data["routines"] if allowed in r["member_ids"]]
@@ -170,8 +252,8 @@ async def websocket_calendar(hass, connection, msg):
     """Return upcoming events from selected Home Assistant calendars."""
     try:
         data = await _store(hass).snapshot()
-        if not connection.user.is_admin:
-            connection.send_error(msg["id"], "unauthorized", "Administrator required for shared calendars")
+        if not connection.user.is_admin and not _is_display_account(data, connection.user):
+            connection.send_error(msg["id"], "unauthorized", "Shared calendar access required")
             return
         events = await collect_calendar_events(hass, data.get("calendar_entities", []), days=msg["days"])
         connection.send_result(msg["id"], events)
@@ -194,6 +276,10 @@ async def websocket_import(hass, connection, msg):
         restored = validate_backup(msg["backup"])
         async with hass.data[DOMAIN + "_mutation_lock"]:
             await _store(hass).save(restored)
+        # A restored backup may include members whose dashboards do not yet
+        # exist. Sync after releasing the mutation lock, without changing
+        # any previously customized dashboard configuration.
+        await async_ensure_dashboards_safely(hass, restored.get("members", []))
         connection.send_result(msg["id"], {"success": True})
     except (ValueError, KeyError, TypeError) as exc:
         connection.send_error(msg["id"], "invalid_backup", str(exc))
@@ -259,7 +345,7 @@ def register_api(hass):
             })
             @websocket_api.async_response
             async def handler(hass, connection, msg):
-                if not connection.user.is_admin and name not in ("claim_chore", "redeem_reward", "complete_routine_step", "set_presence"):
+                if not connection.user.is_admin and name not in ("claim_chore", "redeem_reward", "complete_routine_step", "set_presence", "complete_reminder"):
                     connection.send_error(msg["id"], "unauthorized", "Administrator required")
                     return
                 try:
@@ -280,6 +366,13 @@ def register_api(hass):
                                 raise ValueError("Members can only complete routine steps for today")
                         updated = function(snapshot, **kwargs)
                         await store.save(updated)
+                    # A new member gets a personal dashboard immediately.
+                    # Dashboard failures do not undo the successful household
+                    # mutation; future setups will safely retry missing ones.
+                    if name == "add_member":
+                        await async_ensure_dashboards_safely(
+                            hass, updated["members"]
+                        )
                     connection.send_result(msg["id"], {"success": True})
                 except (ValueError, TypeError, KeyError) as exc:
                     connection.send_error(msg["id"], "invalid_request", str(exc))

@@ -24,13 +24,14 @@ def empty_household():
         "events": [],
         "meals": [],
         "shopping": [],
-        "settings": {"currency_name": "Points"},
+        "settings": {"currency_name": "Points", "display_user_ids": []},
         "redemptions": [],
         "routine_completions": [],
         "presence": {},
         "room_entities": {},
         "announcements": [],
         "rotations": [],
+        "reminders": [],
         "calendar_entities": [],
     }
 
