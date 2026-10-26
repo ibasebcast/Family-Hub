@@ -131,7 +131,8 @@ async def websocket_state(hass, connection, msg):
         data["redemptions"] = [r for r in data.get("redemptions", []) if r["member_id"] == allowed]
         data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
         # Hide records without a defined member-level access model.
-        for section in ("events", "meals", "shopping", "routines"):
+        for section in ("events", "meals", "shopping", "routines", "announcements", "routine_completions"):
+            
             data[section] = []
         connection.send_result(msg["id"], data)
     except ValueError as exc:
