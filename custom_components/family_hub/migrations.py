@@ -6,7 +6,7 @@ downgrades or optional modules do not silently erase household information.
 
 from copy import deepcopy
 
-CURRENT_SCHEMA = 2
+CURRENT_SCHEMA = 3
 
 
 def migrate_household(saved):
@@ -26,6 +26,14 @@ def migrate_household(saved):
         data.setdefault("calendar_entities", [])
         data.setdefault("rotations", [])
         data["schema_version"] = 2
+    if data["schema_version"] == 2:
+        # Add reminder and display-account settings without touching records.
+        data.setdefault("reminders", [])
+        data.setdefault("settings", {}).setdefault("display_user_ids", [])
+        data["schema_version"] = 3
+    # Backfill keys for older snapshots that declared the current version.
+    data.setdefault("reminders", [])
+    data.setdefault("settings", {}).setdefault("display_user_ids", [])
     # Rotations were introduced after the schema version was incremented.
     # Backfill them for already-migrated households without dropping records.
     data.setdefault("rotations", [])
