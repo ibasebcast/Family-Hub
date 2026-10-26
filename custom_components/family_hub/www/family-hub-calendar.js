@@ -26,12 +26,13 @@
         const state=await this._hass.callWS({type:"family_hub/state"});
         this.local=state.events||[];
         this.external=[];
+        this.error="";
         try {
           this.external=await this._hass.callWS({type:"family_hub/calendar",days:366});
         } catch(error) {
           this.error="External calendar: "+String(error.message||error);
         }
-        if(this.external.length)this.error="";
+
       } catch(error){this.error=String(error.message||error);}
       this.render();
     }
