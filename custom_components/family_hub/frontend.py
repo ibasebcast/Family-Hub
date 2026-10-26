@@ -5,7 +5,7 @@ from pathlib import Path
 from homeassistant.components.http import StaticPathConfig
 
 _LOGGER = logging.getLogger(__name__)
-FILES = ("family-hub.js", "family-hub-shopping.js")
+FILES = ("family-hub.js", "family-hub-shopping.js", "family-hub-calendar.js")
 
 
 async def register_frontend(hass):
