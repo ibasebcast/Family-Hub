@@ -28,6 +28,21 @@ def edit_record(data, *, collection, record_id, changes):
         raise ValueError("Title is required")
     if "name" in candidate and not str(candidate["name"]).strip():
         raise ValueError("Name is required")
+    if collection == "members":
+        if candidate.get("role") not in {"adult", "child"}:
+            raise ValueError("Invalid member role")
+        user_id = candidate.get("ha_user_id")
+        if user_id and any(
+            m["id"] != record_id and m.get("ha_user_id") == user_id
+            for m in data["members"]
+        ):
+            raise ValueError("Home Assistant user is already linked")
+    if collection == "events":
+        from datetime import datetime
+        start = datetime.fromisoformat(candidate["starts_at"])
+        end = datetime.fromisoformat(candidate["ends_at"])
+        if start.tzinfo is None or end.tzinfo is None or end <= start:
+            raise ValueError("Invalid event time range")
     if collection == "rewards" and (type(candidate["cost"]) is not int or candidate["cost"] < 0):
         raise ValueError("Invalid reward cost")
     if collection == "chores":
