@@ -22,6 +22,7 @@ from .calendar_adapter import collect_calendar_events
 from .permissions import can_act_as_member, linked_member
 from .reward_requests import review_redemption
 from .custody import add_rotation, rotation_schedule
+from .dashboard_templates import templates_for_members
 
 COMMANDS = {
     "add_rotation": (add_rotation, {vol.Required("member_ids"): [str], vol.Required("starts_on"): str, vol.Required("households"): [str], vol.Optional("days_per_block", default=7): vol.All(int, vol.Range(min=1, max=365))}),
@@ -222,6 +223,26 @@ async def websocket_rotation_schedule(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_request", str(exc))
 
 
+@websocket_api.websocket_command({vol.Required("type"): "family_hub/dashboard_templates"})
+@websocket_api.async_response
+async def websocket_dashboard_templates(hass, connection, msg):
+    """Give administrators editable dashboard starter configurations.
+
+    Ordinary member accounts must not receive a catalog of every other member,
+    even though each member's state endpoint is separately permission-scoped.
+    """
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    try:
+        snapshot = await _store(hass).snapshot()
+        connection.send_result(
+            msg["id"], templates_for_members(snapshot["members"])
+        )
+    except (ValueError, KeyError) as exc:
+        connection.send_error(msg["id"], "invalid_state", str(exc))
+
+
 def register_api(hass):
     """Register commands once during integration setup."""
     websocket_api.async_register_command(hass, websocket_state)
@@ -229,6 +250,7 @@ def register_api(hass):
     websocket_api.async_register_command(hass, websocket_calendar)
     websocket_api.async_register_command(hass, websocket_import)
     websocket_api.async_register_command(hass, websocket_rotation_schedule)
+    websocket_api.async_register_command(hass, websocket_dashboard_templates)
     for action, (operation, fields) in COMMANDS.items():
         # Freeze loop variables in this factory to avoid late binding bugs.
         def make_handler(name, function, schema_fields):

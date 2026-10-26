@@ -22,10 +22,17 @@ async def register_frontend(hass):
     lovelace = hass.data.get("lovelace")
     resources = getattr(lovelace, "resources", None)
     if resources is None:
-        _LOGGER.info("Lovelace resources unavailable; manual YAML resource setup required")
+        _LOGGER.info("Lovelace resources not ready; no registration attempted")
+        return
+    if not hasattr(resources, "async_create_item"):
+        # YAML-managed resources cannot be modified through the storage API.
+        _LOGGER.info("Lovelace resources use YAML; add Family Hub modules to YAML resources")
         return
     try:
-        await resources.async_load()
+        # Reading an unloaded collection before registration may discard existing
+        # Lovelace resources, so always load it before checking for duplicates.
+        if hasattr(resources, "async_load"):
+            await resources.async_load()
         existing = resources.async_items()
         for filename in FILES:
             url = "/family_hub_static/" + filename
