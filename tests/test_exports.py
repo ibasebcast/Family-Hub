@@ -30,3 +30,16 @@ def test_rejects_duplicate_record_ids():
     data["members"] = [{"id": "same"}, {"id": "same"}]
     with pytest.raises(ValueError):
         validate_backup(data)
+
+def test_rejects_unhashable_backup_identifiers():
+    data = empty_household()
+    data["members"] = [{"id": ["invalid"]}]
+    with pytest.raises(ValueError):
+        validate_backup(data)
+
+
+def test_backup_without_rotations_gets_empty_rotation_list():
+    data = empty_household()
+    data.pop("rotations")
+    restored = validate_backup(data)
+    assert restored["rotations"] == []
