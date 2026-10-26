@@ -20,8 +20,10 @@ from .settings import update_settings
 from .editing import edit_record, delete_record
 from .calendar_adapter import collect_calendar_events
 from .permissions import can_act_as_member, linked_member
+from .reward_requests import review_redemption
 
 COMMANDS = {
+    "review_redemption": (review_redemption, {vol.Required("redemption_id"): str, vol.Required("status"): vol.In(["approved", "fulfilled", "declined"])}),
     "edit_record": (edit_record, {vol.Required("collection"): str, vol.Required("record_id"): str, vol.Required("changes"): dict}),
     "delete_record": (delete_record, {vol.Required("collection"): str, vol.Required("record_id"): str}),
     "add_announcement": (add_announcement, {
