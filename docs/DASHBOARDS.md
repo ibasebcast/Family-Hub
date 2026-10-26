@@ -42,6 +42,20 @@ Management has tabs for household members, chores, rewards, currency name and
 external calendar selection. Editing existing records is supported through
 the authenticated API, with more dashboard editing controls planned.
 
+## Weather and reward requests
+
+```yaml
+type: custom:family-hub-weather-card
+entity: weather.home
+```
+
+```yaml
+type: custom:family-hub-rewards-queue-card
+```
+
+The weather card reads a Home Assistant weather entity. Reward requests can
+be approved, fulfilled, or declined. Declined requests refund their points.
+
 ## Chore approvals and backup
 
 ```yaml
@@ -78,6 +92,8 @@ resource configuration:
 /family_hub_static/family-hub-organizer.js
 /family_hub_static/family-hub-backup.js
 /family_hub_static/family-hub-approvals.js
+/family_hub_static/family-hub-weather.js
+/family_hub_static/family-hub-rewards-queue.js
 ```
 
 ## Permissions
