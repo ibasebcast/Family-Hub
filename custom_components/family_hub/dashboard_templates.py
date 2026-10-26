@@ -57,6 +57,36 @@ def family_dashboard():
     }
 
 
+def wall_dashboard():
+    """Read-only dashboard for explicitly authorized family-display accounts.
+
+    Household controls and administrative screens are intentionally omitted.
+    The WebSocket API returns only the display-safe household snapshot.
+    """
+    return {
+        "title": "Family Hub Display",
+        "views": [
+            {
+                "title": "Today",
+                "path": "today",
+                "icon": "mdi:home-heart",
+                "cards": [
+                    {"type": "custom:family-hub-overview-card"},
+                    {"type": "custom:family-hub-weather-card"},
+                ],
+            },
+            {
+                "title": "Calendar",
+                "path": "calendar",
+                "icon": "mdi:calendar-month",
+                "cards": [
+                    {"type": "custom:family-hub-calendar-card", "read_only": True},
+                ],
+            },
+        ],
+    }
+
+
 def member_dashboard(member):
     """Return an individual dashboard with an explicitly scoped member ID."""
     member_id = member["id"]
@@ -104,6 +134,12 @@ def templates_for_members(members):
             "title": "Family Hub",
             "icon": "mdi:home-heart",
             "config": family_dashboard(),
+        },
+        "wall": {
+            "url_path": "family-hub-wall",
+            "title": "Family Hub Display",
+            "icon": "mdi:monitor-dashboard",
+            "config": wall_dashboard(),
         },
         "members": dashboards,
     }
