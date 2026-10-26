@@ -1,6 +1,6 @@
 """Integration-level contract tests using lightweight Home Assistant fakes.
 
-These tests exercise the actual setup and WebSocket handlers without requiring
+These tests exercise the actual setup and undecorated WebSocket handlers without requiring
 a running Home Assistant server or modifying persistent user data.
 """
 import asyncio
@@ -100,7 +100,7 @@ async def test_member_state_is_filtered_and_admin_sees_full_data():
     api._store = lambda h: h.data[DOMAIN]["entry"]
     try:
         member = FakeConnection(user("user-a"))
-        await api.websocket_state(hass, member, {"id": 1, "type": "family_hub/state"})
+        await api.websocket_state.__wrapped__(hass, member, {"id": 1, "type": "family_hub/state"})
         assert member.error is None
         result = member.result[1]
         assert [m["id"] for m in result["members"]] == ["a"]
@@ -108,10 +108,10 @@ async def test_member_state_is_filtered_and_admin_sees_full_data():
         assert [t["id"] for t in result["transactions"]] == ["ta"]
         assert result["events"] == []
         stranger = FakeConnection(user("unknown"))
-        await api.websocket_state(hass, stranger, {"id": 2, "type": "family_hub/state"})
+        await api.websocket_state.__wrapped__(hass, stranger, {"id": 2, "type": "family_hub/state"})
         assert stranger.error[1] == "unauthorized"
         admin = FakeConnection(user("admin", True))
-        await api.websocket_state(hass, admin, {"id": 3, "type": "family_hub/state"})
+        await api.websocket_state.__wrapped__(hass, admin, {"id": 3, "type": "family_hub/state"})
         assert len(admin.result[1]["members"]) == 2
         assert len(admin.result[1]["events"]) == 1
     finally:
@@ -126,18 +126,18 @@ async def test_backup_export_import_permissions_and_persistence():
     api._store = lambda h: h.data[DOMAIN]["entry"]
     try:
         denied = FakeConnection(user("child"))
-        await api.websocket_export(hass, denied, {"id": 1})
+        await api.websocket_export.__wrapped__(hass, denied, {"id": 1})
         assert denied.error[1] == "unauthorized"
-        await api.websocket_import(hass, denied, {
+        await api.websocket_import.__wrapped__(hass, denied, {
             "id": 2, "backup": data, "confirm_replace": True
         })
         assert denied.error[1] == "unauthorized"
         assert hass.data[DOMAIN]["entry"].save_count == 0
 
         admin = FakeConnection(user("admin", True))
-        await api.websocket_export(hass, admin, {"id": 3})
+        await api.websocket_export.__wrapped__(hass, admin, {"id": 3})
         assert admin.result[1]["schema_version"] == data["schema_version"]
-        await api.websocket_import(hass, admin, {
+        await api.websocket_import.__wrapped__(hass, admin, {
             "id": 4, "backup": data, "confirm_replace": True
         })
         assert admin.result[1] == {"success": True}
@@ -164,13 +164,13 @@ async def test_rotation_schedule_only_exposes_linked_member():
     api._store = lambda h: h.data[DOMAIN]["entry"]
     try:
         member = FakeConnection(user("user-a"))
-        await api.websocket_rotation_schedule(hass, member, {
+        await api.websocket_rotation_schedule.__wrapped__(hass, member, {
             "id": 1, "starts_on": "2026-10-26", "days": 2
         })
         assert member.error is None
         assert {r["rotation_id"] for r in member.result[1]} == {"ra"}
         admin = FakeConnection(user("admin", True))
-        await api.websocket_rotation_schedule(hass, admin, {
+        await api.websocket_rotation_schedule.__wrapped__(hass, admin, {
             "id": 2, "starts_on": "2026-10-26", "days": 2
         })
         assert {r["rotation_id"] for r in admin.result[1]} == {"ra", "rb"}
