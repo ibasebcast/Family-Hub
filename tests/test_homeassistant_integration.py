@@ -280,3 +280,54 @@ async def test_dashboard_templates_require_admin_and_use_current_members():
         assert len(admin.result[1]["members"]) == 2
     finally:
         api._store = original_store
+
+
+@pytest.mark.asyncio
+async def test_frontend_registration_skips_yaml_resources_safely():
+    """YAML resource mode must not break integration setup."""
+    from custom_components.family_hub import frontend
+
+    class YAMLResources:
+        def async_items(self):
+            return []
+
+    registered_paths = []
+    http = SimpleNamespace(async_register_static_paths=AsyncMock(
+        side_effect=lambda paths: registered_paths.extend(paths)
+    ))
+    hass = SimpleNamespace(http=http, data={
+        "lovelace": SimpleNamespace(resources=YAMLResources())
+    })
+    await frontend.register_frontend(hass)
+    # The static paths are safe in either mode; YAML resources are immutable.
+    assert len(registered_paths) == len(frontend.FILES)
+
+
+@pytest.mark.asyncio
+async def test_frontend_registration_keeps_existing_resources():
+    """Registration must not replace or duplicate unrelated Lovelace scripts."""
+    from custom_components.family_hub import frontend
+
+    created = []
+
+    class ExistingResources:
+        async def async_load(self):
+            pass
+
+        def async_items(self):
+            return [
+                {"url": "/other-card.js", "type": "module"},
+                {"url": "/family_hub_static/" + frontend.FILES[0] + "?v=1",
+                 "type": "module"},
+            ]
+
+        async def async_create_item(self, item):
+            created.append(item)
+
+    hass = SimpleNamespace(
+        http=SimpleNamespace(async_register_static_paths=AsyncMock()),
+        data={"lovelace": SimpleNamespace(resources=ExistingResources())},
+    )
+    await frontend.register_frontend(hass)
+    assert len(created) == len(frontend.FILES) - 1
+    assert not any(item["url"].endswith(frontend.FILES[0]) for item in created)
