@@ -3,7 +3,7 @@
  *
  * Plain JavaScript and Web Components, with no build tooling or external CDN.
  * Every card uses the authenticated Home Assistant WebSocket API. Only Home
- * Assistant administrators can currently change data, enforced server-side.
+ * Backend permissions govern each action, including linked member self-service.
  */
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -139,11 +139,14 @@ class FamilyHubMemberCard extends FamilyHubBase {
       return;
     }
     const chores = (data.chores || []).filter(chore => chore.assignee_ids.includes(member.id));
-    const rows = chores.map(chore => `<div class="item">
+    const rows = chores.map(chore => {
+      const claimed = (data.completions || []).find(c => c.chore_id === chore.id &&
+        c.member_id === member.id && c.status !== "rejected");
+      return `<div class="item">
       <div><strong>${escapeHtml(chore.title)}</strong>
       <div class="muted">${escapeHtml(chore.recurrence)} · ${chore.points} points</div></div>
-      <button data-chore="${escapeHtml(chore.id)}">Claim</button>
-    </div>`).join("");
+      <button data-chore="${escapeHtml(chore.id)}" ${claimed ? "disabled" : ""}>${claimed ? escapeHtml(claimed.status) : "Claim"}</button>
+    </div>`; }).join("");
     const total = (data.transactions || []).filter(t => t.member_id === member.id)
       .reduce((sum,t) => sum + t.amount,0);
     const rewards = (data.rewards || []).map(reward => `<div class="item">
@@ -155,8 +158,7 @@ class FamilyHubMemberCard extends FamilyHubBase {
       ${escapeHtml(data.settings?.currency_name || "Points")}</div>
       <h3>Chores</h3>${rows || '<p class="muted">No assigned chores.</p>'}
       <h3>Rewards</h3>${rewards || '<p class="muted">No rewards available.</p>'}
-      <p class="muted">Claiming chores and redeeming rewards currently requires
-      an administrator account.</p><button id="refresh">Refresh</button>`);
+      <button id="refresh">Refresh</button>`);
     this.shadowRoot.querySelectorAll("[data-chore]").forEach(button =>
       button.addEventListener("click", () => this.mutate("claim_chore", {
         chore_id:button.dataset.chore, member_id:member.id
