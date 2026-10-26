@@ -47,6 +47,8 @@ class Chore:
     recurrence: str = "daily"
     approval_required: bool = False
     description: str = ""
+    rotation_days: int | None = None
+    rotation_start: str | None = None
     id: str = field(default_factory=new_id)
 
     def __post_init__(self):
@@ -58,6 +60,17 @@ class Chore:
             raise ValueError("Points must be between 0 and 100000")
         if self.recurrence not in {"once", "daily", "weekly"}:
             raise ValueError("Unsupported recurrence")
+        if self.rotation_days is not None:
+            if type(self.rotation_days) is not int or not 1 <= self.rotation_days <= 365:
+                raise ValueError("Rotation days must be between 1 and 365")
+            if len(self.assignee_ids) < 2:
+                raise ValueError("Rotating chores need at least two assignees")
+            if not self.rotation_start:
+                raise ValueError("Rotating chores require a start date")
+            from datetime import date
+            date.fromisoformat(self.rotation_start)
+        elif self.rotation_start is not None:
+            raise ValueError("Rotation start requires rotation days")
 
     def to_dict(self):
         return asdict(self)
