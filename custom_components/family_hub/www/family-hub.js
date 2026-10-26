@@ -148,6 +148,7 @@ class FamilyHubMemberCard extends FamilyHubBase {
     // Calculate rotation by UTC day numbers to avoid DST changing whose
     // turn it is. Display and claim requests use the local calendar day.
     const utcDay = key => Math.floor(Date.parse(key + "T00:00:00Z") / 86400000);
+    const away = data.presence?.[member.id] === false;
     const rows = chores.map(chore => {
       const rotating = Boolean(chore.rotation_days && chore.rotation_start);
       const dayIndex = rotating
@@ -167,7 +168,8 @@ class FamilyHubMemberCard extends FamilyHubBase {
       <div><strong>${escapeHtml(chore.title)}</strong>
       <div class="muted">${escapeHtml(chore.recurrence)} · ${chore.points} points</div></div>
       <button data-chore="${escapeHtml(chore.id)}"
-        ${claimed || inactive ? "disabled" : ""}>${inactive ? "Not your turn"
+        ${claimed || inactive || away ? "disabled" : ""}>${away ? "Paused while away"
+          : inactive ? "Not your turn"
           : claimed ? escapeHtml(claimed.status) : "Claim"}</button>
     </div>`; }).join("");
     const total = (data.transactions || []).filter(t => t.member_id === member.id)
