@@ -24,6 +24,7 @@ from .reward_requests import review_redemption
 from .custody import add_rotation, rotation_schedule
 from .dashboard_templates import templates_for_members
 from .dashboard_manager import async_ensure_dashboards_safely
+from .storage import empty_household
 
 COMMANDS = {
     "add_rotation": (add_rotation, {vol.Required("member_ids"): [str], vol.Required("starts_on"): str, vol.Required("households"): [str], vol.Optional("days_per_block", default=7): vol.All(int, vol.Range(min=1, max=365))}),
@@ -40,6 +41,7 @@ COMMANDS = {
     "update_settings": (update_settings, {
         vol.Optional("currency_name"): str,
         vol.Optional("calendar_entities"): [str],
+        vol.Optional("display_user_ids"): [str],
     }),
     "set_room_entities": (set_room_entities, {
         vol.Required("member_id"): str,
@@ -117,6 +119,58 @@ def _store(hass):
     return next(iter(entries.values()))
 
 
+def _display_state(data):
+    """Return only shared, read-only information for a kiosk account.
+
+    Member details, audit trails, device controls and pending approvals are
+    deliberately withheld. The administrator must explicitly allowlist each
+    Home Assistant user who should see the shared family display.
+    """
+    state = empty_household()
+    state["members"] = [
+        {"id": member["id"], "name": member["name"],
+         "role": member.get("role", "child")}
+        for member in data["members"]
+    ]
+    state["chores"] = [
+        {"id": chore["id"], "assignee_ids": chore["assignee_ids"]}
+        for chore in data["chores"]
+    ]
+    state["transactions"] = [
+        {"member_id": item["member_id"], "amount": item["amount"]}
+        for item in data["transactions"]
+    ]
+    state["events"] = [
+        {"title": event["title"], "starts_at": event["starts_at"],
+         "ends_at": event["ends_at"]}
+        for event in data["events"]
+    ]
+    state["shopping"] = [
+        {"title": item["title"], "checked": item["checked"],
+         "quantity": item.get("quantity", "1")}
+        for item in data["shopping"]
+    ]
+    state["meals"] = [
+        {"title": item["title"], "day": item["day"],
+         "meal_type": item["meal_type"]}
+        for item in data["meals"]
+    ]
+    state["announcements"] = [
+        {"title": item["title"], "message": item["message"],
+         "expires_at": item.get("expires_at")}
+        for item in data["announcements"]
+    ]
+    state["settings"] = {
+        "currency_name": data.get("settings", {}).get("currency_name", "Points")
+    }
+    return state
+
+
+def _is_display_account(data, user):
+    """Check an explicit user-ID allowlist, never an arbitrary account role."""
+    return user.id in data.get("settings", {}).get("display_user_ids", [])
+
+
 @websocket_api.websocket_command({vol.Required("type"): "family_hub/state"})
 @websocket_api.async_response
 async def websocket_state(hass, connection, msg):
@@ -125,6 +179,9 @@ async def websocket_state(hass, connection, msg):
         data = await _store(hass).snapshot()
         if connection.user.is_admin:
             connection.send_result(msg["id"], data)
+            return
+        if _is_display_account(data, connection.user):
+            connection.send_result(msg["id"], _display_state(data))
             return
         member = next((m for m in data["members"]
                        if m.get("ha_user_id") == connection.user.id), None)
@@ -173,8 +230,8 @@ async def websocket_calendar(hass, connection, msg):
     """Return upcoming events from selected Home Assistant calendars."""
     try:
         data = await _store(hass).snapshot()
-        if not connection.user.is_admin:
-            connection.send_error(msg["id"], "unauthorized", "Administrator required for shared calendars")
+        if not connection.user.is_admin and not _is_display_account(data, connection.user):
+            connection.send_error(msg["id"], "unauthorized", "Shared calendar access required")
             return
         events = await collect_calendar_events(hass, data.get("calendar_entities", []), days=msg["days"])
         connection.send_result(msg["id"], events)
