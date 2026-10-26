@@ -17,8 +17,11 @@ from .exports import export_household
 from .room import set_room_entities
 from .announcements import add_announcement, remove_announcement
 from .settings import update_settings
+from .editing import edit_record, delete_record
 
 COMMANDS = {
+    "edit_record": (edit_record, {vol.Required("collection"): str, vol.Required("record_id"): str, vol.Required("changes"): dict}),
+    "delete_record": (delete_record, {vol.Required("collection"): str, vol.Required("record_id"): str}),
     "add_announcement": (add_announcement, {
         vol.Required("title"): str, vol.Required("message"): str,
         vol.Optional("expires_at"): str,
