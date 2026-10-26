@@ -12,8 +12,21 @@ from homeassistant.core import callback
 from .const import DOMAIN
 from .household import add_chore, add_member, add_reward, claim_chore, review_chore, redeem_reward
 from .organizer import add_event, add_meal, add_shopping_item, set_shopping_checked
+from .routines import add_routine, complete_routine_step, set_presence
+from .exports import export_household
 
 COMMANDS = {
+    "add_routine": (add_routine, {
+        vol.Required("title"): str, vol.Required("member_ids"): [str],
+        vol.Required("steps"): [str],
+    }),
+    "complete_routine_step": (complete_routine_step, {
+        vol.Required("routine_id"): str, vol.Required("step_id"): str,
+        vol.Required("member_id"): str, vol.Required("day"): str,
+    }),
+    "set_presence": (set_presence, {
+        vol.Required("member_id"): str, vol.Required("present"): bool,
+    }),
     "add_shopping_item": (add_shopping_item, {
         vol.Required("title"): str,
         vol.Optional("quantity", default="1"): str,
@@ -102,9 +115,24 @@ async def websocket_state(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_state", str(exc))
 
 
+@websocket_api.websocket_command({vol.Required("type"): "family_hub/export"})
+@websocket_api.async_response
+async def websocket_export(hass, connection, msg):
+    """Let administrators download a complete snapshot without modifying it."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    try:
+        data = await _store(hass).snapshot()
+        connection.send_result(msg["id"], export_household(data))
+    except ValueError as exc:
+        connection.send_error(msg["id"], "invalid_state", str(exc))
+
+
 def register_api(hass):
     """Register commands once during integration setup."""
     websocket_api.async_register_command(hass, websocket_state)
+    websocket_api.async_register_command(hass, websocket_export)
     for action, (operation, fields) in COMMANDS.items():
         # Freeze loop variables in this factory to avoid late binding bugs.
         def make_handler(name, function, schema_fields):
