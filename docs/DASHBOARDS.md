@@ -42,6 +42,20 @@ Management has tabs for household members, chores, rewards, currency name and
 external calendar selection. Editing existing records is supported through
 the authenticated API, with more dashboard editing controls planned.
 
+## Chore approvals and backup
+
+```yaml
+type: custom:family-hub-approvals-card
+```
+
+```yaml
+type: custom:family-hub-backup-card
+```
+
+The approvals card lets an administrator review pending chore completions.
+The backup card exports household JSON and restores a selected backup after
+explicit confirmation. Restore replaces the active household dataset.
+
 ## Individual member
 
 ```yaml
@@ -62,6 +76,8 @@ resource configuration:
 /family_hub_static/family-hub-calendar.js
 /family_hub_static/family-hub-manage.js
 /family_hub_static/family-hub-organizer.js
+/family_hub_static/family-hub-backup.js
+/family_hub_static/family-hub-approvals.js
 ```
 
 ## Permissions
