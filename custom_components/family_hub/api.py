@@ -167,11 +167,8 @@ async def websocket_calendar(hass, connection, msg):
     """Return upcoming events from selected Home Assistant calendars."""
     try:
         data = await _store(hass).snapshot()
-        if not connection.user.is_admin and not any(
-            member.get("ha_user_id") == connection.user.id
-            for member in data["members"]
-        ):
-            connection.send_error(msg["id"], "unauthorized", "No linked member")
+        if not connection.user.is_admin:
+            connection.send_error(msg["id"], "unauthorized", "Administrator required for shared calendars")
             return
         events = await collect_calendar_events(hass, data.get("calendar_entities", []), days=msg["days"])
         connection.send_result(msg["id"], events)
