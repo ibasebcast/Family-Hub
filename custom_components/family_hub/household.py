@@ -115,6 +115,6 @@ def redeem_reward(data, *, member_id, reward_id):
     result["transactions"] = redeem(result["transactions"], member_id, reward)
     result.setdefault("redemptions", []).append({
         "id": new_id(), "member_id": member_id, "reward_id": reward_id,
-        "created_at": timestamp(), "status": "requested"
+        "created_at": timestamp(), "status": "requested", "cost": reward["cost"]
     })
     return result
