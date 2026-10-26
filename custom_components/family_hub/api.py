@@ -133,9 +133,10 @@ async def websocket_state(hass, connection, msg):
         data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
         data["presence"] = {allowed: data.get("presence", {}).get(allowed, False)}
         data["calendar_entities"] = []
-        # Hide records without a defined member-level access model.
-        for section in ("events", "meals", "shopping", "routines", "announcements", "routine_completions"):
-            
+        data["routines"] = [r for r in data["routines"] if allowed in r["member_ids"]]
+        data["routine_completions"] = [c for c in data["routine_completions"] if c["member_id"] == allowed]
+        # Shared organizer data remains administrator-only until visibility controls exist.
+        for section in ("events", "meals", "shopping", "announcements"):
             data[section] = []
         connection.send_result(msg["id"], data)
     except ValueError as exc:
