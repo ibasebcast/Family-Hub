@@ -34,9 +34,10 @@ def validate_backup(payload):
     for section in LIST_SECTIONS:
         if section == "calendar_entities":
             continue
-        identifiers = [item.get("id") for item in data[section] if isinstance(item, dict)]
-        if len(identifiers) != len(data[section]):
+        if any(not isinstance(item, dict) or not isinstance(item.get("id"), str)
+               or not item["id"] for item in data[section]):
             raise ValueError(f"Invalid record in {section}")
+        identifiers = [item["id"] for item in data[section]]
         if len(identifiers) != len(set(identifiers)):
             raise ValueError(f"Duplicate record ID in {section}")
     members = {m["id"] for m in data["members"]}
