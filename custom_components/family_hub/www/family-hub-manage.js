@@ -235,7 +235,7 @@
           border-radius:8px;padding:6px}
         .device{display:flex;align-items:center;flex-direction:row;gap:12px;
           padding:7px;border-bottom:1px solid var(--divider-color,#ddd)}
-        .device span{flex:1}.device small{display:block;opacity:.7}
+        .device[hidden]{display:none}.device span{flex:1}.device small{display:block;opacity:.7}
         .dashboard-links li{margin:7px 0}
       </style><article><h2>Manage Family Hub</h2>
       <nav>${tabs.map(t => `<button data-tab="${t}" aria-current="${this.tab === t}">
