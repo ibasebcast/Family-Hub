@@ -13,7 +13,7 @@ from .const import DOMAIN
 from .household import add_chore, add_member, add_reward, claim_chore, review_chore, redeem_reward
 from .organizer import add_event, add_meal, add_shopping_item, set_shopping_checked
 from .routines import add_routine, complete_routine_step, set_presence
-from .exports import export_household
+from .exports import export_household, validate_backup
 from .room import set_room_entities
 from .announcements import add_announcement, remove_announcement
 from .settings import update_settings
