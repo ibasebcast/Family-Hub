@@ -1,14 +1,46 @@
 # Family Hub dashboard cards
 
-The integration serves its cards from `/family_hub_static/family-hub.js`.
-Storage-mode Lovelace resources are registered automatically where supported.
-For YAML-mode dashboards, add this JavaScript module resource manually.
+Family Hub registers its JavaScript resources automatically for Home Assistant
+storage-mode dashboards. The cards can be added in the dashboard editor.
 
-## Family overview
+## Shared family display
+
+Use these cards together on a wall-mounted tablet:
+
+```yaml
+type: custom:family-hub-calendar-card
+default_view: month
+```
 
 ```yaml
 type: custom:family-hub-overview-card
 ```
+
+```yaml
+type: custom:family-hub-shopping-card
+```
+
+```yaml
+type: custom:family-hub-meals-card
+```
+
+```yaml
+type: custom:family-hub-announcements-card
+```
+
+Calendar views include month, week and agenda. Local family events can be
+added directly on the calendar card. Home Assistant calendar entities can be
+selected in Family Hub Management and are displayed alongside local events.
+
+## Household administration
+
+```yaml
+type: custom:family-hub-manage-card
+```
+
+Management has tabs for household members, chores, rewards, currency name and
+external calendar selection. Editing existing records is supported through
+the authenticated API, with more dashboard editing controls planned.
 
 ## Individual member
 
@@ -17,11 +49,23 @@ type: custom:family-hub-member-card
 member_id: REPLACE_WITH_MEMBER_ID
 ```
 
-Until the dashboard editor and member selector are built, the member ID is
-configured manually. If omitted, the card displays the first visible member.
+When member_id is omitted, the first visible member is displayed.
 
-## Current limitations
+## YAML-mode dashboard resources
 
-These are early functional cards, not the finished wall display. Mutations are
-restricted to Home Assistant administrators. The member card does not yet have
-a routine UI, bedroom device controls, or fine-grained access delegation.
+Add each of these paths as a JavaScript module in Home Assistant's dashboard
+resource configuration:
+
+```text
+/family_hub_static/family-hub.js
+/family_hub_static/family-hub-shopping.js
+/family_hub_static/family-hub-calendar.js
+/family_hub_static/family-hub-manage.js
+/family_hub_static/family-hub-organizer.js
+```
+
+## Permissions
+
+Household modifications currently require an administrator. Personal member
+views are restricted to the linked Home Assistant account. Child self-service
+and room-specific access delegation remain in development.
