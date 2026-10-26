@@ -51,7 +51,8 @@ sidebar by default but can be accessed at `/family-hub-wall/`.
 Chore assignments support once, daily and weekly resets, optional adult approval,
 Family Hub point balances and rewards. Rotating assignments switch between
 selected members at the configured interval. Routines have independently
-tracked daily checklist steps. Home/away status can be updated through a card.
+tracked daily checklist steps. Home/away status can be updated through a card;
+while a member is away, their chore claims and point awards are paused.
 
 Administrators can schedule reminders for the household or individual members.
 A native Home Assistant background timer checks due dates and creates
@@ -59,8 +60,9 @@ persistent notifications. Stable notification IDs avoid duplicate alerts,
 and missed reminders are recovered after Home Assistant restarts.
 Linked members can complete reminders assigned to them.
 
-Home Assistant calendar entities, including supported Google Calendar entities,
-can appear beside locally created Family Hub events. Calendar access uses Home
+The calendar offers day, week, month and agenda views. Home Assistant calendar
+entities, including supported Google Calendar entities, can appear beside
+locally created Family Hub events. Calendar access uses Home
 Assistant's existing configured calendar integrations and does not require
 separate Google credentials in Family Hub.
 
