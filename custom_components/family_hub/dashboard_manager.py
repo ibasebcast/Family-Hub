@@ -59,7 +59,7 @@ async def async_ensure_dashboards(hass, members):
 
     collection = _live_dashboard_collection(hass)
     requested = templates_for_members(members)
-    templates = [requested["family"], *requested["members"]]
+    templates = [requested["family"], requested["wall"], *requested["members"]]
 
     lock = hass.data.setdefault(_DASHBOARD_LOCK_KEY, asyncio.Lock())
     created_count = 0
