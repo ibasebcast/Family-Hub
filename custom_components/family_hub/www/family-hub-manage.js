@@ -116,7 +116,7 @@
         const templates = await this._hass.callWS({type:"family_hub/dashboard_templates"});
         const existing = await this._hass.callWS({type:"lovelace/dashboards/list"});
         const paths = new Set(existing.map(item => item.url_path));
-        const requested = [templates.family, ...templates.members];
+        const requested = [templates.family, templates.wall, ...templates.members];
         let created = 0;
         let skipped = 0;
         for (const item of requested) {
@@ -157,11 +157,12 @@
     dashboardsEditor() {
       return `<section>
         <h3>Editable Home Assistant dashboards</h3>
-        <p>Create a family dashboard with planning and management views plus
-          an individual dashboard for each household member. Previously
-          created dashboards are left unchanged.</p>
+        <p>Family Hub creates an administrator dashboard, an optional read-only
+          wall-tablet display, and a personal dashboard for every member.
+          Authorize display accounts under Settings. Existing dashboards
+          retain all user edits.</p>
         <button id="create-dashboards" type="button" ${this.installing ? "disabled" : ""}>
-          ${this.installing ? "Creating dashboards…" : "Create missing dashboards"}
+          ${this.installing ? "Creating dashboards…" : "Repair missing dashboards"}
         </button>
         ${this.dashboardLinks.length ? `<ul class="dashboard-links">${this.dashboardLinks.map(
           item => `<li><a href="/${esc(item.path)}/">${esc(item.title)}</a></li>`
@@ -213,7 +214,10 @@
         form = field("currency_name", "Points currency name", "text", true,
           data.settings?.currency_name || "Points")
           + `<label>Calendar entities (comma separated)<input name="calendar_entities"
-          value="${esc((data.calendar_entities || []).join(", "))}"></label>`;
+          value="${esc((data.calendar_entities || []).join(", "))}"></label>
+          <label>Home Assistant user IDs allowed to view the read-only wall display
+            (comma separated)<input name="display_user_ids"
+            value="${esc((data.settings?.display_user_ids || []).join(", "))}"></label>`;
         list = "<p>Choose Home Assistant calendar entities to show beside local family events.</p>";
       } else if (this.tab === "rooms") {
         list = this.roomEditor(members);
@@ -328,6 +332,8 @@
         if (this.tab === "settings") return this.command("update_settings", {
           currency_name:value("currency_name"),
           calendar_entities:value("calendar_entities").split(",")
+            .map(s => s.trim()).filter(Boolean),
+          display_user_ids:value("display_user_ids").split(",")
             .map(s => s.trim()).filter(Boolean)
         });
       };
