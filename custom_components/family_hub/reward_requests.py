@@ -28,7 +28,7 @@ def review_redemption(data, *, redemption_id, status):
         if reward is None:
             raise ValueError("Original reward is missing")
         result["transactions"] = record_transaction(
-            result["transactions"], record["member_id"], reward["cost"],
+            result["transactions"], record["member_id"], record.get("cost", reward["cost"]),
             "reward_refunded", record["id"]
         )
     record["status"] = status
