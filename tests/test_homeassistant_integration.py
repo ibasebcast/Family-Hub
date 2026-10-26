@@ -249,3 +249,34 @@ def test_backend_domain_workflow_approval_redemption_and_refund():
     assert balance(data["transactions"], member) == 25
     with pytest.raises(ValueError):
         review_redemption(data, redemption_id=redemption, status="declined")
+
+
+@pytest.mark.asyncio
+async def test_dashboard_templates_require_admin_and_use_current_members():
+    """Member accounts cannot enumerate other people's dashboard templates."""
+    data = empty_household()
+    data["members"] = [
+        {"id": "member-one", "name": "Member One", "ha_user_id": "user-one"},
+        {"id": "member-two", "name": "Member Two", "ha_user_id": "user-two"},
+    ]
+    hass = fake_hass(data)
+    original_store = api._store
+    api._store = lambda h: h.data[DOMAIN]["entry"]
+    try:
+        denied = FakeConnection(user("user-one"))
+        await api.websocket_dashboard_templates.__wrapped__(
+            hass, denied, {"id": 1, "type": "family_hub/dashboard_templates"}
+        )
+        assert denied.error[1] == "unauthorized"
+        assert denied.result is None
+
+        admin = FakeConnection(user("admin", True))
+        await api.websocket_dashboard_templates.__wrapped__(
+            hass, admin, {"id": 2, "type": "family_hub/dashboard_templates"}
+        )
+        assert admin.error is None
+        assert admin.result[0] == 2
+        assert admin.result[1]["family"]["url_path"] == "family-hub"
+        assert len(admin.result[1]["members"]) == 2
+    finally:
+        api._store = original_store
