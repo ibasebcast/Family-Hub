@@ -88,6 +88,8 @@ COMMANDS = {
         vol.Optional("recurrence", default="daily"): vol.In(["once", "daily", "weekly"]),
         vol.Optional("approval_required", default=False): bool,
         vol.Optional("description", default=""): str,
+        vol.Optional("rotation_days"): vol.All(int, vol.Range(min=1, max=365)),
+        vol.Optional("rotation_start"): str,
     }),
     "add_reward": (add_reward, {
         vol.Required("title"): str,
