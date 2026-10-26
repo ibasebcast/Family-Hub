@@ -43,3 +43,24 @@ def test_backup_without_rotations_gets_empty_rotation_list():
     data.pop("rotations")
     restored = validate_backup(data)
     assert restored["rotations"] == []
+
+
+@pytest.mark.parametrize("section,record", [
+    ("redemptions", {"id": "redemption", "member_id": "missing", "reward_id": "reward"}),
+    ("routines", {"id": "routine", "member_ids": ["missing"]}),
+    ("rotations", {"id": "rotation", "member_ids": ["missing"]}),
+    ("events", {"id": "event", "member_ids": ["missing"]}),
+    ("routine_completions", {"id": "completion", "routine_id": "missing", "member_id": "missing"}),
+])
+def test_rejects_orphaned_household_references(section, record):
+    data = empty_household()
+    data[section].append(record)
+    with pytest.raises(ValueError):
+        validate_backup(data)
+
+
+def test_rejects_room_devices_for_unknown_member():
+    data = empty_household()
+    data["room_entities"]["missing"] = ["light.bedroom"]
+    with pytest.raises(ValueError):
+        validate_backup(data)
