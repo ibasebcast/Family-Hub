@@ -11,8 +11,28 @@ from homeassistant.components import websocket_api
 from homeassistant.core import callback
 from .const import DOMAIN
 from .household import add_chore, add_member, add_reward, claim_chore, review_chore, redeem_reward
+from .organizer import add_event, add_meal, add_shopping_item, set_shopping_checked
 
 COMMANDS = {
+    "add_shopping_item": (add_shopping_item, {
+        vol.Required("title"): str,
+        vol.Optional("quantity", default="1"): str,
+        vol.Optional("category", default="General"): str,
+    }),
+    "set_shopping_checked": (set_shopping_checked, {
+        vol.Required("item_id"): str, vol.Required("checked"): bool,
+    }),
+    "add_meal": (add_meal, {
+        vol.Required("day"): str, vol.Required("title"): str,
+        vol.Optional("meal_type", default="dinner"): vol.In(["breakfast", "lunch", "dinner", "snack"]),
+        vol.Optional("notes", default=""): str,
+    }),
+    "add_event": (add_event, {
+        vol.Required("title"): str, vol.Required("starts_at"): str,
+        vol.Required("ends_at"): str,
+        vol.Optional("member_ids", default=[]): [str],
+        vol.Optional("notes", default=""): str,
+    }),
     "add_member": (add_member, {
         vol.Required("name"): str,
         vol.Optional("role", default="child"): vol.In(["child", "adult"]),
