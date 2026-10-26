@@ -174,6 +174,7 @@ def register_api(hass):
     """Register commands once during integration setup."""
     websocket_api.async_register_command(hass, websocket_state)
     websocket_api.async_register_command(hass, websocket_export)
+    websocket_api.async_register_command(hass, websocket_calendar)
     for action, (operation, fields) in COMMANDS.items():
         # Freeze loop variables in this factory to avoid late binding bugs.
         def make_handler(name, function, schema_fields):
