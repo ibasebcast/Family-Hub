@@ -23,6 +23,7 @@ from .permissions import can_act_as_member, linked_member
 from .reward_requests import review_redemption
 from .custody import add_rotation, rotation_schedule
 from .dashboard_templates import templates_for_members
+from .dashboard_manager import async_ensure_dashboards_safely
 
 COMMANDS = {
     "add_rotation": (add_rotation, {vol.Required("member_ids"): [str], vol.Required("starts_on"): str, vol.Required("households"): [str], vol.Optional("days_per_block", default=7): vol.All(int, vol.Range(min=1, max=365))}),
@@ -194,6 +195,10 @@ async def websocket_import(hass, connection, msg):
         restored = validate_backup(msg["backup"])
         async with hass.data[DOMAIN + "_mutation_lock"]:
             await _store(hass).save(restored)
+        # A restored backup may include members whose dashboards do not yet
+        # exist. Sync after releasing the mutation lock, without changing
+        # any previously customized dashboard configuration.
+        await async_ensure_dashboards_safely(hass, restored.get("members", []))
         connection.send_result(msg["id"], {"success": True})
     except (ValueError, KeyError, TypeError) as exc:
         connection.send_error(msg["id"], "invalid_backup", str(exc))
@@ -280,6 +285,13 @@ def register_api(hass):
                                 raise ValueError("Members can only complete routine steps for today")
                         updated = function(snapshot, **kwargs)
                         await store.save(updated)
+                    # A new member gets a personal dashboard immediately.
+                    # Dashboard failures do not undo the successful household
+                    # mutation; future setups will safely retry missing ones.
+                    if name == "add_member":
+                        await async_ensure_dashboards_safely(
+                            hass, updated["members"]
+                        )
                     connection.send_result(msg["id"], {"success": True})
                 except (ValueError, TypeError, KeyError) as exc:
                     connection.send_error(msg["id"], "invalid_request", str(exc))
