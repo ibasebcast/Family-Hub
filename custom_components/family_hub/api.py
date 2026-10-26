@@ -173,6 +173,26 @@ async def websocket_calendar(hass, connection, msg):
         connection.send_error(msg["id"], "calendar_error", str(exc))
 
 
+@websocket_api.websocket_command({
+    vol.Required("type"): "family_hub/import",
+    vol.Required("backup"): dict,
+    vol.Required("confirm_replace"): True,
+})
+@websocket_api.async_response
+async def websocket_import(hass, connection, msg):
+    """Restore a validated backup only after explicit administrator confirmation."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
+    try:
+        restored = validate_backup(msg["backup"])
+        async with hass.data[DOMAIN + "_mutation_lock"]:
+            await _store(hass).save(restored)
+        connection.send_result(msg["id"], {"success": True})
+    except (ValueError, KeyError, TypeError) as exc:
+        connection.send_error(msg["id"], "invalid_backup", str(exc))
+
+
 def register_api(hass):
     """Register commands once during integration setup."""
     websocket_api.async_register_command(hass, websocket_state)
