@@ -29,6 +29,7 @@ CARDS = {
     "family-hub-room-card": "family-hub-room.js",
     "family-hub-routines-card": "family-hub-routines.js",
     "family-hub-custody-card": "family-hub-routines.js",
+    "family-hub-reminders-card": "family-hub-reminders.js",
 }
 
 MUTATION_FEATURES = {
@@ -43,6 +44,7 @@ MUTATION_FEATURES = {
     "announcements": {"add_announcement", "remove_announcement"},
     "member_room_devices": {"set_room_entities"},
     "settings": {"update_settings"},
+    "reminders": {"add_reminder", "complete_reminder"},
 }
 
 
@@ -84,6 +86,7 @@ def test_generated_dashboards_cover_every_major_daily_screen():
                 "custom:family-hub-room-card",
                 "custom:family-hub-routines-card",
                 "custom:family-hub-custody-card",
+                "custom:family-hub-reminders-card",
             }:
                 assert card["member_id"] == "opaque"
 
