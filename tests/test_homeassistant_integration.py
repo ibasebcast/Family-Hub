@@ -72,13 +72,24 @@ async def test_setup_entry_loads_and_unload_preserves_storage(monkeypatch):
     monkeypatch.setattr("custom_components.family_hub.HouseholdStorage", lambda hass: store)
     install = AsyncMock(return_value=1)
     monkeypatch.setattr("custom_components.family_hub.async_ensure_dashboards_safely", install)
+    notify = AsyncMock()
+    unsubscribed = []
+    monkeypatch.setattr(
+        "custom_components.family_hub.async_notify_due_reminders_safely", notify
+    )
+    monkeypatch.setattr(
+        "custom_components.family_hub.async_track_time_interval",
+        lambda hass, callback, interval: lambda: unsubscribed.append(True)
+    )
     hass = SimpleNamespace(data={})
     entry = SimpleNamespace(entry_id="entry-1")
     assert await async_setup_entry(hass, entry) is True
     store.load.assert_awaited_once()
     install.assert_awaited_once_with(hass, [])
+    notify.assert_awaited_once_with(hass)
     assert hass.data[DOMAIN]["entry-1"] is store
     assert await async_unload_entry(hass, entry) is True
+    assert unsubscribed == [True]
     assert hass.data[DOMAIN] == {}
 
 
