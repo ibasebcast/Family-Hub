@@ -4,11 +4,12 @@ class FamilyHubRoomCard extends HTMLElement {
   setConfig(config){this.config=config;}
   set hass(value){if(!this.ha){this.ha=value;this.load();}else{this.ha=value;this.render();}}
   getCardSize(){return 4;}
-  async load(){this.data=await this.ha.callWS({type:"family_hub/state"});this.render();}
+  async load(){try{this.data=await this.ha.callWS({type:"family_hub/state"});}catch(error){this.data={};this.error=String(error.message||error);}this.render();}
   render(){
     this.shadowRoot.replaceChildren();
     const card=document.createElement("ha-card");card.header="Room controls";
     const body=document.createElement("div");body.style.padding="16px";
+    if(this.error){const alert=document.createElement("p");alert.textContent=this.error;alert.setAttribute("role","alert");body.append(alert);}
     const member=this.data.members?.find(m=>m.id===this.config?.member_id)
       ||this.data.members?.[0];
     const ids=this.data.room_entities?.[member?.id]||[];
@@ -28,7 +29,7 @@ class FamilyHubRoomCard extends HTMLElement {
       }
       body.append(row);
     }
-    if(!ids.length)body.textContent="No room devices configured";
+    if(!ids.length&&!this.error)body.textContent="No room devices configured";
     card.append(body);this.shadowRoot.append(card);
   }
 }
