@@ -2,7 +2,7 @@
 
 Family Hub is an open-source HACS-ready custom integration for managing family
 calendars, chores, rewards, routines, rotating schedules, shopping, meals and
-per-member Home Assistant room controls.
+per-member Home Assistant room controls and scheduled reminders.
 
 > **Development status:** This is not yet a stable release. The first release
 > remains gated on successful Home Assistant installation testing. Existing
@@ -14,13 +14,14 @@ Family Hub creates these editable storage-mode Home Assistant dashboards when
 its integration is configured. **You do not have to create or paste any YAML.**
 
 - **Family Hub** (`/family-hub/`): An administrator dashboard with household
-  overview, calendar, meals, shopping, routines, custody schedules, rewards,
+  overview, calendar, meals, shopping, scheduled reminders, routines,
+  custody schedules, rewards,
   approvals, settings, room device assignments and household backup/restore.
 - **Family Hub Display** (`/family-hub-wall/`): A read-only shared home
   overview and calendar for a wall tablet. Administrators explicitly authorize
   which Home Assistant accounts may see shared household information.
 - **Individual member dashboards** (`/family-hub-member-…/`): My Day with
-  chores, point balance, rewards, daily routine checklist and the member's
+  chores, point balance, rewards, assigned reminders, daily routine checklist and the member's
   rotation schedule, plus My Room for devices selected in Home Assistant.
 
 New member dashboards are created when members are added or restored from
@@ -51,6 +52,12 @@ Chore assignments support once, daily and weekly resets, optional adult approval
 Family Hub point balances and rewards. Rotating assignments switch between
 selected members at the configured interval. Routines have independently
 tracked daily checklist steps. Home/away status can be updated through a card.
+
+Administrators can schedule reminders for the household or individual members.
+A native Home Assistant background timer checks due dates and creates
+persistent notifications. Stable notification IDs avoid duplicate alerts,
+and missed reminders are recovered after Home Assistant restarts.
+Linked members can complete reminders assigned to them.
 
 Home Assistant calendar entities, including supported Google Calendar entities,
 can appear beside locally created Family Hub events. Calendar access uses Home
