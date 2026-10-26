@@ -26,3 +26,11 @@ def test_decline_refunds_once():
     assert declined["transactions"][0]["amount"] == 10
     with pytest.raises(ValueError):
         review_redemption(declined, redemption_id="request", status="declined")
+
+def test_decline_refunds_original_cost_after_price_change():
+    data = household()
+    data["redemptions"][0]["cost"] = 7
+    data["rewards"][0]["cost"] = 15
+    declined = review_redemption(data, redemption_id="request", status="declined")
+    assert declined["transactions"][0]["amount"] == 7
+    assert data["transactions"] == []
