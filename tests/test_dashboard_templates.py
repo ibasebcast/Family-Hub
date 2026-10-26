@@ -27,6 +27,7 @@ def test_family_template_contains_only_registered_custom_cards():
     assert "family-hub-shopping-card" in card_names
     assert "family-hub-routines-card" in card_names
     assert "family-hub-custody-card" in card_names
+    assert "family-hub-reminders-card" in card_names
     assert "family-hub.js" in FILES
 
 
@@ -54,6 +55,7 @@ def test_member_templates_have_stable_unique_paths_and_explicit_scope():
             {"type": "custom:family-hub-member-card", "member_id": member["id"]},
             {"type": "custom:family-hub-routines-card", "member_id": member["id"]},
             {"type": "custom:family-hub-custody-card", "member_id": member["id"]},
+            {"type": "custom:family-hub-reminders-card", "member_id": member["id"]},
         ]
         assert views[1]["cards"] == [
             {"type": "custom:family-hub-room-card", "member_id": member["id"]}
