@@ -1,15 +1,19 @@
 """Family Hub integration entry point.
 
-This development foundation deliberately does not register unfinished cards,
-panels, or mutation APIs. Those must be tested before deployment.
+The integration loads existing household data without resetting it. The
+WebSocket API is registered once and uses a shared lock for mutations.
 """
 
+import asyncio
+from .api import register_api
 from .const import DOMAIN
 from .storage import HouseholdStorage
 
 
 async def async_setup(hass, config):
-    """Allow Home Assistant to load the integration."""
+    """Register authenticated API endpoints once per Home Assistant process."""
+    hass.data.setdefault(DOMAIN + "_mutation_lock", asyncio.Lock())
+    register_api(hass)
     return True
 
 
