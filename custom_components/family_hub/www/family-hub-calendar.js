@@ -23,11 +23,15 @@
     async refresh(){
       if(!this._hass)return;
       try {
-        const [state,external]=await Promise.all([
-          this._hass.callWS({type:"family_hub/state"}),
-          this._hass.callWS({type:"family_hub/calendar",days:366})
-        ]);
-        this.local=state.events||[];this.external=external||[];this.error="";
+        const state=await this._hass.callWS({type:"family_hub/state"});
+        this.local=state.events||[];
+        this.external=[];
+        try {
+          this.external=await this._hass.callWS({type:"family_hub/calendar",days:366});
+        } catch(error) {
+          this.error="External calendar: "+String(error.message||error);
+        }
+        if(this.external.length)this.error="";
       } catch(error){this.error=String(error.message||error);}
       this.render();
     }
