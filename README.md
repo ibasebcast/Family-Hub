@@ -7,7 +7,6 @@ Family Hub is an open-source Home Assistant project for family calendars, chores
 ## Project principles
 
 - **Simple setup:** Add the integration, name the household, and configure features later through the UI.
-- **Privacy first:** No real household names, personal schedules, or user-specific sample data in the repository.
 - **Readable source:** Small, clearly named modules with comments explaining responsibilities and non-obvious logic.
 - **Native Home Assistant:** HACS distribution, Home Assistant authentication and permissions, reusable Lovelace cards, and editable dashboards.
 - **Multiple screens:** Shared family kiosk, individual member dashboards, and optional room controls for authorized Home Assistant entities.
@@ -28,6 +27,3 @@ Family Hub is an open-source Home Assistant project for family calendars, chores
 
 The integration is under active design. Installation instructions will be published after an initial tested build is available.
 
-## Privacy
-
-Family Hub is intended to run inside Home Assistant. No personal demo data is included in source code, documentation, or tests.
