@@ -130,6 +130,8 @@ async def websocket_state(hass, connection, msg):
         data["transactions"] = [t for t in data["transactions"] if t["member_id"] == allowed]
         data["redemptions"] = [r for r in data.get("redemptions", []) if r["member_id"] == allowed]
         data["room_entities"] = {allowed: data.get("room_entities", {}).get(allowed, [])}
+        data["presence"] = {allowed: data.get("presence", {}).get(allowed, False)}
+        data["calendar_entities"] = []
         # Hide records without a defined member-level access model.
         for section in ("events", "meals", "shopping", "routines", "announcements", "routine_completions"):
             
