@@ -139,9 +139,16 @@ class FamilyHubMemberCard extends FamilyHubBase {
       return;
     }
     const chores = (data.chores || []).filter(chore => chore.assignee_ids.includes(member.id));
+    const today = new Date();
+    const dateKey = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"),
+      String(d.getDate()).padStart(2,"0")].join("-");
+    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    monday.setDate(monday.getDate() - (monday.getDay()+6)%7);
     const rows = chores.map(chore => {
+      const period = chore.recurrence === "once" ? "once" :
+        chore.recurrence === "weekly" ? dateKey(monday) : dateKey(today);
       const claimed = (data.completions || []).find(c => c.chore_id === chore.id &&
-        c.member_id === member.id && c.status !== "rejected");
+        c.member_id === member.id && c.period === period && c.status !== "rejected");
       return `<div class="item">
       <div><strong>${escapeHtml(chore.title)}</strong>
       <div class="muted">${escapeHtml(chore.recurrence)} · ${chore.points} points</div></div>
