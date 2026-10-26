@@ -24,6 +24,7 @@ from .reward_requests import review_redemption
 from .custody import add_rotation, rotation_schedule
 
 COMMANDS = {
+    "add_rotation": (add_rotation, {vol.Required("member_ids"): [str], vol.Required("starts_on"): str, vol.Required("households"): [str]}),
     "review_redemption": (review_redemption, {vol.Required("redemption_id"): str, vol.Required("status"): vol.In(["approved", "fulfilled", "declined"])}),
     "edit_record": (edit_record, {vol.Required("collection"): str, vol.Required("record_id"): str, vol.Required("changes"): dict}),
     "delete_record": (delete_record, {vol.Required("collection"): str, vol.Required("record_id"): str}),
