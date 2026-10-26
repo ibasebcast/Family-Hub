@@ -7,7 +7,7 @@ from .migrations import migrate_household
 LIST_SECTIONS = (
     "members", "chores", "completions", "rewards", "transactions",
     "routines", "events", "meals", "shopping", "redemptions",
-    "routine_completions", "announcements", "calendar_entities",
+    "routine_completions", "announcements", "calendar_entities", "rotations",
 )
 MAP_SECTIONS = ("settings", "presence", "room_entities")
 
@@ -24,6 +24,7 @@ def validate_backup(payload):
     data = migrate_household(payload)
     if data.get("schema_version") != STORAGE_VERSION:
         raise ValueError("Unsupported backup schema version")
+    data.setdefault("rotations", [])
     for key in LIST_SECTIONS:
         if not isinstance(data.get(key), list):
             raise ValueError(f"Backup section {key} must be a list")
