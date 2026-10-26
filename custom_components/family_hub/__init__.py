@@ -8,12 +8,14 @@ import asyncio
 from .api import register_api
 from .const import DOMAIN
 from .storage import HouseholdStorage
+from .frontend import register_frontend
 
 
 async def async_setup(hass, config):
     """Register authenticated API endpoints once per Home Assistant process."""
     hass.data.setdefault(DOMAIN + "_mutation_lock", asyncio.Lock())
     register_api(hass)
+    await register_frontend(hass)
     return True
 
 
