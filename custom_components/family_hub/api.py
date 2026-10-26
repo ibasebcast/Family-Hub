@@ -198,12 +198,37 @@ async def websocket_import(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_backup", str(exc))
 
 
+@websocket_api.websocket_command({
+    vol.Required("type"): "family_hub/rotation_schedule",
+    vol.Required("starts_on"): str,
+    vol.Optional("days", default=30): vol.All(int, vol.Range(min=1, max=366)),
+})
+@websocket_api.async_response
+async def websocket_rotation_schedule(hass, connection, msg):
+    """Read a rotation schedule scoped to the authenticated member."""
+    try:
+        data = await _store(hass).snapshot()
+        member_id = None
+        if not connection.user.is_admin:
+            member = linked_member(data, connection.user.id)
+            if member is None:
+                connection.send_error(msg["id"], "unauthorized", "No linked household member")
+                return
+            member_id = member["id"]
+        connection.send_result(msg["id"], rotation_schedule(
+            data, starts_on=msg["starts_on"], days=msg["days"], member_id=member_id
+        ))
+    except ValueError as exc:
+        connection.send_error(msg["id"], "invalid_request", str(exc))
+
+
 def register_api(hass):
     """Register commands once during integration setup."""
     websocket_api.async_register_command(hass, websocket_state)
     websocket_api.async_register_command(hass, websocket_export)
     websocket_api.async_register_command(hass, websocket_calendar)
     websocket_api.async_register_command(hass, websocket_import)
+    websocket_api.async_register_command(hass, websocket_rotation_schedule)
     for action, (operation, fields) in COMMANDS.items():
         # Freeze loop variables in this factory to avoid late binding bugs.
         def make_handler(name, function, schema_fields):
