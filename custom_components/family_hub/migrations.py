@@ -24,5 +24,9 @@ def migrate_household(saved):
         data.setdefault("room_entities", {})
         data.setdefault("announcements", [])
         data.setdefault("calendar_entities", [])
+        data.setdefault("rotations", [])
         data["schema_version"] = 2
+    # Rotations were introduced after the schema version was incremented.
+    # Backfill them for already-migrated households without dropping records.
+    data.setdefault("rotations", [])
     return data
