@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from .models import timestamp
+from .ledger import record_transaction
 
 
 def review_redemption(data, *, redemption_id, status):
@@ -22,6 +23,14 @@ def review_redemption(data, *, redemption_id, status):
     }
     if status not in allowed.get(current, set()):
         raise ValueError("Invalid redemption transition")
+    if status == "declined":
+        reward = next((r for r in result["rewards"] if r["id"] == record["reward_id"]), None)
+        if reward is None:
+            raise ValueError("Original reward is missing")
+        result["transactions"] = record_transaction(
+            result["transactions"], record["member_id"], reward["cost"],
+            "reward_refunded", record["id"]
+        )
     record["status"] = status
     record["updated_at"] = timestamp()
     return result
