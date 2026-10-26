@@ -48,3 +48,18 @@ def test_delete_refuses_chore_with_completion_history():
 def test_delete_unreferenced_chore():
     result = delete_record(sample(), collection="chores", record_id="chore")
     assert result["chores"] == []
+
+
+@pytest.mark.parametrize("section,record", [
+    ("redemptions", {"id": "redemption", "member_id": "member", "reward_id": "reward"}),
+    ("routines", {"id": "routine", "member_ids": ["member"]}),
+    ("rotations", {"id": "rotation", "member_ids": ["member"]}),
+    ("events", {"id": "event", "member_ids": ["member"]}),
+    ("completions", {"id": "completion", "member_id": "member"}),
+])
+def test_delete_member_protects_related_records(section, record):
+    data = sample()
+    data["chores"] = []
+    data[section] = [record]
+    with pytest.raises(ValueError):
+        delete_record(data, collection="members", record_id="member")
