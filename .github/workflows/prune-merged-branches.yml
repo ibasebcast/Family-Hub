@@ -1,0 +1,80 @@
+name: Clean up merged branches
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - closed
+
+# Branch deletion needs write permission. The script checks the merged PR
+# and the exact source commit before removing anything.
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove verified merged branches only
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const fullName = `${owner}/${repo}`;
+            const candidates = [
+              { branch: "feature/room-controls-and-dashboards", pr: 1 },
+              { branch: "feature/automatic-lovelace-dashboards", pr: 2 },
+              { branch: "fix/load-family-hub-lovelace-resources", pr: 3 },
+            ];
+
+            if (context.eventName === "pull_request") {
+              const pr = context.payload.pull_request;
+              if (pr?.merged && pr.head?.repo?.full_name === fullName) {
+                candidates.push({ branch: pr.head.ref, pr: pr.number });
+              }
+            }
+
+            for (const { branch, pr } of candidates) {
+              // Never delete the default branch or an arbitrary foreign branch.
+              if (!branch || branch === "main") continue;
+
+              const { data: pull } = await github.rest.pulls.get({
+                owner, repo, pull_number: pr,
+              });
+              if (
+                !pull.merged_at ||
+                pull.head?.repo?.full_name !== fullName ||
+                pull.head.ref !== branch
+              ) {
+                core.info(`Skipping ${branch}: merged PR verification failed`);
+                continue;
+              }
+
+              let current;
+              try {
+                ({ data: current } = await github.rest.repos.getBranch({
+                  owner, repo, branch,
+                }));
+              } catch (error) {
+                if (error.status === 404) {
+                  core.info(`Already deleted: ${branch}`);
+                  continue;
+                }
+                throw error;
+              }
+
+              // A developer may have reused a merged branch after the PR.
+              // In that case it is not stale, and must never be removed.
+              if (current.commit.sha !== pull.head.sha) {
+                core.info(`Keeping ${branch}: new commits were added`);
+                continue;
+              }
+
+              await github.rest.git.deleteRef({
+                owner, repo, ref: `heads/${branch}`,
+              });
+              core.info(`Deleted merged branch: ${branch}`);
+            }

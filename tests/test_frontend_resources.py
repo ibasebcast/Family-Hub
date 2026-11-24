@@ -6,6 +6,7 @@ exist: family-hub-manage-card'. These tests verify resource *installation* as
 well as the already-tested dashboard configuration.
 """
 
+import asyncio
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 from unittest.mock import AsyncMock
@@ -13,6 +14,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 from custom_components.family_hub import frontend
+
+
+
+
+async def _executor_job(job, *args):
+    """Mirror Home Assistant's executor so disk I/O stays off the event loop."""
+    return await asyncio.to_thread(job, *args)
 
 
 class StorageResources:
@@ -56,7 +64,7 @@ class StorageResources:
 @pytest.mark.asyncio
 async def test_existing_resource_collection_keeps_other_cards_and_repairs_family_hub():
     resources = StorageResources()
-    hass = SimpleNamespace(data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(resource_mode="storage", resources=resources)
     })
 
@@ -86,7 +94,7 @@ async def test_existing_resource_collection_keeps_other_cards_and_repairs_family
 
 @pytest.mark.asyncio
 async def test_lovelace_missing_at_first_setup_can_recover_on_entry_setup():
-    hass = SimpleNamespace(data={})
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={})
     assert await frontend.async_ensure_lovelace_resources(hass) is False
 
     resources = StorageResources()
@@ -101,7 +109,7 @@ async def test_lovelace_missing_at_first_setup_can_recover_on_entry_setup():
 async def test_register_frontend_serves_every_script_and_sets_up_resources():
     resources = StorageResources()
     paths = []
-    hass = SimpleNamespace(
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, 
         data={"lovelace": SimpleNamespace(
             resource_mode="storage", resources=resources,
         )},
@@ -126,10 +134,11 @@ async def test_yaml_resource_mode_uses_frontend_fallback_without_writing_yaml(mo
         def async_items(self):
             return []
 
-    hass = SimpleNamespace(data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(
             resource_mode="yaml", resources=YAMLResources(),
-        )
+        ),
+        frontend.ha_frontend.DATA_EXTRA_MODULE_URL: object(),
     })
     assert await frontend.async_ensure_lovelace_resources(hass) is True
     assert {urlsplit(url).path for url in fallback} == {
@@ -143,9 +152,73 @@ async def test_resource_collection_error_is_reported_without_breaking_ha():
         async def async_load(self):
             raise RuntimeError("Cannot read Lovelace resource storage")
 
-    hass = SimpleNamespace(data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(
             resource_mode="storage", resources=BrokenStorageResources(),
         )
     })
     assert await frontend.async_ensure_lovelace_resources(hass) is False
+
+
+@pytest.mark.asyncio
+async def test_file_hashing_never_blocks_home_assistant_event_loop(monkeypatch):
+    """Regression: Home Assistant detects Path.read_bytes/open inside setup.
+
+    Raise if *any* JavaScript read runs on the event loop thread, while still
+    allowing ordinary synchronous file reads inside the HA executor.
+    """
+    from pathlib import Path
+
+    original = Path.read_bytes
+    seen = []
+
+    def checked_read_bytes(path):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            seen.append(path.name)
+            return original(path)
+        raise AssertionError(f"Blocking read_bytes on event loop: {path}")
+
+    monkeypatch.setattr(Path, "read_bytes", checked_read_bytes)
+    resources = StorageResources()
+    hass = SimpleNamespace(
+        async_add_executor_job=_executor_job,
+        data={"lovelace": SimpleNamespace(
+            resource_mode="storage", resources=resources,
+        )},
+    )
+    assert await frontend.async_ensure_lovelace_resources(hass) is True
+    assert sorted(seen) == sorted(frontend.FILES)
+    assert len(resources.creates) == len(frontend.FILES) - 1
+    assert len(resources.updates) == 1
+
+
+@pytest.mark.asyncio
+async def test_frontend_manager_receives_every_module_even_in_storage_mode():
+    """Reproduce the browser symptom: dashboards exist but card modules absent.
+
+    Home Assistant's extra module manager must receive all 12 URLs even
+    when Lovelace resource storage is present. This ensures that the frontend
+    is notified of the integration-owned scripts.
+    """
+    registered_modules = []
+    class ModuleManager:
+        def add(self, url):
+            registered_modules.append(url)
+
+    resources = StorageResources()
+    hass = SimpleNamespace(
+        async_add_executor_job=_executor_job,
+        data={
+            "lovelace": SimpleNamespace(
+                resource_mode="storage", resources=resources,
+            ),
+            frontend.ha_frontend.DATA_EXTRA_MODULE_URL: ModuleManager(),
+        },
+    )
+    assert await frontend.async_ensure_lovelace_resources(hass) is True
+    assert {urlsplit(url).path for url in registered_modules} == {
+        "/family_hub_static/" + filename for filename in frontend.FILES
+    }
+    assert all("?v=" in url for url in registered_modules)
