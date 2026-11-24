@@ -16,6 +16,11 @@ from custom_components.family_hub.const import DOMAIN
 from custom_components.family_hub.storage import empty_household
 
 
+async def _executor_job(job, *args):
+    """Mirror Home Assistant's executor so disk I/O stays off the event loop."""
+    return await asyncio.to_thread(job, *args)
+
+
 class FakeConnection:
     def __init__(self, user):
         self.user = user
@@ -266,7 +271,7 @@ async def test_frontend_registers_all_dashboard_assets(monkeypatch):
     http = SimpleNamespace(async_register_static_paths=AsyncMock(
         side_effect=lambda paths: registered_paths.extend(paths)
     ))
-    hass = SimpleNamespace(http=http, data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, http=http, data={
         "lovelace": SimpleNamespace(resources=FakeResources())
     })
     await frontend.register_frontend(hass)
@@ -369,7 +374,7 @@ async def test_frontend_registration_skips_yaml_resources_safely(monkeypatch):
     http = SimpleNamespace(async_register_static_paths=AsyncMock(
         side_effect=lambda paths: registered_paths.extend(paths)
     ))
-    hass = SimpleNamespace(http=http, data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, http=http, data={
         "lovelace": SimpleNamespace(resources=YAMLResources())
     })
     await frontend.register_frontend(hass)
@@ -400,6 +405,7 @@ async def test_frontend_registration_keeps_existing_resources():
             created.append(item)
 
     hass = SimpleNamespace(
+        async_add_executor_job=_executor_job,
         http=SimpleNamespace(async_register_static_paths=AsyncMock()),
         data={"lovelace": SimpleNamespace(resources=ExistingResources())},
     )
