@@ -82,16 +82,34 @@ async def async_ensure_lovelace_resources(hass):
         # Path.read_bytes() triggers Home Assistant's blocking-I/O detector
         # if called on the event loop. Hash files in HA's executor instead.
         module_urls = await hass.async_add_executor_job(_module_urls)
+        # The frontend manager is the official loading path for integration
+        # modules. Storage resources may be written successfully even when
+        # a browser never imports them. Publish modules through both paths.
+        module_manager = hass.data.get(ha_frontend.DATA_EXTRA_MODULE_URL)
+        if module_manager is not None:
+            for url in module_urls.values():
+                ha_frontend.add_extra_js_url(hass, url)
+            _LOGGER.info(
+                "Registered %d Family Hub cards as frontend ES modules",
+                len(module_urls),
+            )
+        else:
+            _LOGGER.warning(
+                "Frontend module manager unavailable; "
+                "Lovelace resources will be used instead"
+            )
         mode = getattr(lovelace, "resource_mode", MODE_STORAGE)
         if mode != MODE_STORAGE or not hasattr(resources, "async_create_item"):
             # YAML resources are read-only. Register with HA's frontend
             # without changing the user's configuration.yaml.
-            for url in module_urls.values():
-                ha_frontend.add_extra_js_url(hass, url)
-            _LOGGER.info(
-                "Registered %d Family Hub modules through frontend YAML-mode fallback",
-                len(FILES),
-            )
+            # Frontend extra modules above cover YAML mode, which is not
+            # writable. Do not modify the user's YAML resources.
+            if module_manager is None:
+                _LOGGER.error(
+                    "Unable to register cards: both storage resources and "
+                    "the frontend module manager are unavailable"
+                )
+                return False
             return True
 
         # In HA 2026.x the storage collection can exist before being loaded.
