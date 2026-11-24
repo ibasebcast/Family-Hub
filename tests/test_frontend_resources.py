@@ -157,3 +157,37 @@ async def test_resource_collection_error_is_reported_without_breaking_ha():
         )
     })
     assert await frontend.async_ensure_lovelace_resources(hass) is False
+
+
+@pytest.mark.asyncio
+async def test_file_hashing_never_blocks_home_assistant_event_loop(monkeypatch):
+    """Regression: Home Assistant detects Path.read_bytes/open inside setup.
+
+    Raise if *any* JavaScript read runs on the event loop thread, while still
+    allowing ordinary synchronous file reads inside the HA executor.
+    """
+    from pathlib import Path
+
+    original = Path.read_bytes
+    seen = []
+
+    def checked_read_bytes(path):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            seen.append(path.name)
+            return original(path)
+        raise AssertionError(f"Blocking read_bytes on event loop: {path}")
+
+    monkeypatch.setattr(Path, "read_bytes", checked_read_bytes)
+    resources = StorageResources()
+    hass = SimpleNamespace(
+        async_add_executor_job=_executor_job,
+        data={"lovelace": SimpleNamespace(
+            resource_mode="storage", resources=resources,
+        )},
+    )
+    assert await frontend.async_ensure_lovelace_resources(hass) is True
+    assert sorted(seen) == sorted(frontend.FILES)
+    assert len(resources.creates) == len(frontend.FILES) - 1
+    assert len(resources.updates) == 1
