@@ -76,12 +76,34 @@ separate Google credentials in Family Hub.
   member through the authenticated WebSocket API.
 - Dashboard creation uses Home Assistant's live Lovelace collection with
   listener notifications, not direct edits to `.storage`.
-- Lovelace JavaScript modules register automatically with storage-managed
-  resources. Installations that manage Lovelace resources through YAML must
-  add those module URLs in the YAML resources configuration.
+- Family Hub serves every bundled JavaScript card and reconciles the Lovelace
+  resource list both during integration setup and when its config entry loads.
+  Each module URL includes a source-content version to avoid stale browser files.
+  On YAML-managed resource installations, Family Hub registers its modules with
+  Home Assistant's frontend instead of modifying the read-only YAML resource list.
 - HACS updates preserve saved Family Hub household data, settings and existing
   dashboard edits.
 - Browser device actions remain subject to Home Assistant permissions.
+
+## If a card says "Custom element doesn't exist"
+
+This means the dashboard was created, but the browser did not load its
+JavaScript resource. Update Family Hub from HACS to the latest development
+revision, restart Home Assistant so its Python integration is reloaded, then
+hard-refresh the browser (Ctrl+Shift+R). No dashboard deletion is needed.
+
+For storage-managed resources, open **Settings → Dashboards → Resources**
+and confirm that the `/family_hub_static/` JavaScript modules are listed.
+For example, `/family_hub_static/family-hub-manage.js?v=…` and
+`/family_hub_static/family-hub-backup.js?v=…` should be registered as
+**JavaScript modules**. On YAML-managed resources, integration-owned modules
+are loaded through the frontend; there is no automatic YAML file edit.
+
+If the problem persists, check Home Assistant's logs for
+`Family Hub Lovelace resources` and confirm that
+`/family_hub_static/family-hub-manage.js` returns JavaScript rather than a
+404. A missing module is a frontend registration problem, not a reason to
+recreate or erase the household.
 
 ## Quality gates
 
