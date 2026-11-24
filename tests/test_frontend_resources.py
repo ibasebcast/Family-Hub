@@ -6,6 +6,7 @@ exist: family-hub-manage-card'. These tests verify resource *installation* as
 well as the already-tested dashboard configuration.
 """
 
+import asyncio
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 from unittest.mock import AsyncMock
@@ -13,6 +14,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 from custom_components.family_hub import frontend
+
+
+
+
+async def _executor_job(job, *args):
+    """Mirror Home Assistant's executor so disk I/O stays off the event loop."""
+    return await asyncio.to_thread(job, *args)
 
 
 class StorageResources:
@@ -56,7 +64,7 @@ class StorageResources:
 @pytest.mark.asyncio
 async def test_existing_resource_collection_keeps_other_cards_and_repairs_family_hub():
     resources = StorageResources()
-    hass = SimpleNamespace(data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(resource_mode="storage", resources=resources)
     })
 
@@ -86,7 +94,7 @@ async def test_existing_resource_collection_keeps_other_cards_and_repairs_family
 
 @pytest.mark.asyncio
 async def test_lovelace_missing_at_first_setup_can_recover_on_entry_setup():
-    hass = SimpleNamespace(data={})
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={})
     assert await frontend.async_ensure_lovelace_resources(hass) is False
 
     resources = StorageResources()
@@ -101,7 +109,7 @@ async def test_lovelace_missing_at_first_setup_can_recover_on_entry_setup():
 async def test_register_frontend_serves_every_script_and_sets_up_resources():
     resources = StorageResources()
     paths = []
-    hass = SimpleNamespace(
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, 
         data={"lovelace": SimpleNamespace(
             resource_mode="storage", resources=resources,
         )},
@@ -126,7 +134,7 @@ async def test_yaml_resource_mode_uses_frontend_fallback_without_writing_yaml(mo
         def async_items(self):
             return []
 
-    hass = SimpleNamespace(data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(
             resource_mode="yaml", resources=YAMLResources(),
         )
@@ -143,7 +151,7 @@ async def test_resource_collection_error_is_reported_without_breaking_ha():
         async def async_load(self):
             raise RuntimeError("Cannot read Lovelace resource storage")
 
-    hass = SimpleNamespace(data={
+    hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(
             resource_mode="storage", resources=BrokenStorageResources(),
         )
