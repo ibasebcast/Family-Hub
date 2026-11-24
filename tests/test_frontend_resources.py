@@ -137,7 +137,8 @@ async def test_yaml_resource_mode_uses_frontend_fallback_without_writing_yaml(mo
     hass = SimpleNamespace(async_add_executor_job=_executor_job, data={
         "lovelace": SimpleNamespace(
             resource_mode="yaml", resources=YAMLResources(),
-        )
+        ),
+        frontend.ha_frontend.DATA_EXTRA_MODULE_URL: object(),
     })
     assert await frontend.async_ensure_lovelace_resources(hass) is True
     assert {urlsplit(url).path for url in fallback} == {
@@ -191,3 +192,33 @@ async def test_file_hashing_never_blocks_home_assistant_event_loop(monkeypatch):
     assert sorted(seen) == sorted(frontend.FILES)
     assert len(resources.creates) == len(frontend.FILES) - 1
     assert len(resources.updates) == 1
+
+
+@pytest.mark.asyncio
+async def test_frontend_manager_receives_every_module_even_in_storage_mode():
+    """Reproduce the browser symptom: dashboards exist but card modules absent.
+
+    Home Assistant's extra module manager must receive all 12 URLs even
+    when Lovelace resource storage is present. This ensures that the frontend
+    is notified of the integration-owned scripts.
+    """
+    registered_modules = []
+    class ModuleManager:
+        def add(self, url):
+            registered_modules.append(url)
+
+    resources = StorageResources()
+    hass = SimpleNamespace(
+        async_add_executor_job=_executor_job,
+        data={
+            "lovelace": SimpleNamespace(
+                resource_mode="storage", resources=resources,
+            ),
+            frontend.ha_frontend.DATA_EXTRA_MODULE_URL: ModuleManager(),
+        },
+    )
+    assert await frontend.async_ensure_lovelace_resources(hass) is True
+    assert {urlsplit(url).path for url in registered_modules} == {
+        "/family_hub_static/" + filename for filename in frontend.FILES
+    }
+    assert all("?v=" in url for url in registered_modules)
