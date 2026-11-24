@@ -1,42 +1,135 @@
-"""Serve and register Family Hub JavaScript dashboard resources."""
+"""Serve and reliably register all Family Hub Lovelace JavaScript cards.
 
+A Home Assistant dashboard may be created successfully even when its custom
+JavaScript resources were never registered. Always ensure both halves of setup.
+Resources are reconciled by URL path, never deleted, and are versioned by file
+contents so updated JavaScript cannot be hidden by an old browser cache.
+"""
+
+from hashlib import sha256
 import logging
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from homeassistant.components import frontend as ha_frontend
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE
 
 _LOGGER = logging.getLogger(__name__)
+_BASE_URL = "/family_hub_static"
+_WWW = Path(__file__).parent / "www"
+
+# Static tuple so the repository audit detects both omissions and extra files.
 FILES = ("family-hub.js", "family-hub-shopping.js", "family-hub-calendar.js", "family-hub-manage.js", "family-hub-organizer.js", "family-hub-backup.js", "family-hub-approvals.js", "family-hub-weather.js", "family-hub-rewards-queue.js", "family-hub-room.js", "family-hub-routines.js", "family-hub-reminders.js")
 
 
+def _module_url(filename):
+    """Build a cache-busted URL from the actual bundled JavaScript contents."""
+    source = _WWW / filename
+    version = sha256(source.read_bytes()).hexdigest()[:12]
+    return f"{_BASE_URL}/{filename}?v={version}"
+
+
 async def register_frontend(hass):
-    """Register static routes and Lovelace resources for storage dashboards."""
+    """Expose static files, then register or repair Lovelace module resources."""
     paths = [
         StaticPathConfig(
-            "/family_hub_static/" + filename,
-            str(Path(__file__).parent / "www" / filename),
+            f"{_BASE_URL}/{filename}",
+            str(_WWW / filename),
             cache_headers=False,
         )
         for filename in FILES
     ]
-    await hass.http.async_register_static_paths(paths)
-    lovelace = hass.data.get("lovelace")
+    try:
+        await hass.http.async_register_static_paths(paths)
+    except RuntimeError:
+        # Idempotent when Home Assistant reuses the same integration setup.
+        _LOGGER.debug("Family Hub static routes already registered")
+
+    await async_ensure_lovelace_resources(hass)
+
+
+async def async_ensure_lovelace_resources(hass):
+    """Ensure every card module appears in the current HA resource collection.
+
+    Safe to call from both async_setup and async_setup_entry. This covers HA
+    startup ordering, as well as upgrades and previously incomplete installs.
+    Existing unrelated Lovelace resources and user dashboards are untouched.
+    """
+    lovelace = hass.data.get(LOVELACE_DATA)
+    if lovelace is None:
+        _LOGGER.warning(
+            "Lovelace is not ready; Family Hub will retry card registration "
+            "when the config entry is set up"
+        )
+        return False
+
     resources = getattr(lovelace, "resources", None)
     if resources is None:
-        _LOGGER.info("Lovelace resources not ready; no registration attempted")
-        return
-    if not hasattr(resources, "async_create_item"):
-        # YAML-managed resources cannot be modified through the storage API.
-        _LOGGER.info("Lovelace resources use YAML; add Family Hub modules to YAML resources")
-        return
-    try:
-        # Reading an unloaded collection before registration may discard existing
-        # Lovelace resources, so always load it before checking for duplicates.
-        if hasattr(resources, "async_load"):
-            await resources.async_load()
-        existing = resources.async_items()
+        _LOGGER.error("Lovelace has no resource collection for Family Hub cards")
+        return False
+
+    mode = getattr(lovelace, "resource_mode", MODE_STORAGE)
+    if mode != MODE_STORAGE or not hasattr(resources, "async_create_item"):
+        # YAML mode is read-only. HA's frontend supports integration-owned
+        # modules as an alternative without editing the user's configuration.
+        # Keep this path distinct from storage resources to avoid duplicates.
         for filename in FILES:
-            url = "/family_hub_static/" + filename
-            if not any(item.get("url", "").split("?")[0] == url for item in existing):
-                await resources.async_create_item({"res_type": "module", "url": url})
-    except (ValueError, RuntimeError, KeyError, TypeError) as exc:
-        _LOGGER.warning("Could not register Family Hub resources: %s", exc)
+            ha_frontend.add_extra_js_url(hass, _module_url(filename))
+        _LOGGER.info(
+            "Registered %d Family Hub modules through frontend YAML-mode fallback",
+            len(FILES),
+        )
+        return True
+
+    # In HA 2026.x the storage collection can exist before being loaded.
+    # Always load it first to preserve all existing resources. Some versions
+    # require the 'loaded' flag to be set explicitly after async_load().
+    try:
+        if not getattr(resources, "loaded", False):
+            await resources.async_load()
+            resources.loaded = True
+
+        existing = {
+            urlsplit(item.get("url", "")).path: item
+            for item in resources.async_items()
+            if item.get("url")
+        }
+        created = 0
+        updated = 0
+        for filename in FILES:
+            target_url = _module_url(filename)
+            base_url = urlsplit(target_url).path
+            match = existing.get(base_url)
+            if match is None:
+                await resources.async_create_item({
+                    "res_type": "module", "url": target_url,
+                })
+                created += 1
+            elif (
+                match.get("url") != target_url
+                or match.get("type") not in (None, "module")
+            ):
+                # Existing resources have IDs in HA. Fakes and old providers
+                # without an update API are left intact instead of duplicated.
+                if "id" in match and hasattr(resources, "async_update_item"):
+                    await resources.async_update_item(match["id"], {
+                        "res_type": "module", "url": target_url,
+                    })
+                    updated += 1
+                else:
+                    _LOGGER.warning(
+                        "Family Hub resource %s needs an update, but its "
+                        "collection cannot update the existing item", base_url
+                    )
+        _LOGGER.info(
+            "Family Hub Lovelace resources ready: %d total, %d created, %d updated",
+            len(FILES), created, updated,
+        )
+        return True
+    except Exception:
+        _LOGGER.exception(
+            "Family Hub could not register Lovelace modules; the dashboard "
+            "may show 'Custom element doesn't exist' until registration succeeds"
+        )
+        return False

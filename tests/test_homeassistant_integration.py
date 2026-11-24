@@ -272,9 +272,11 @@ async def test_frontend_registers_all_dashboard_assets(monkeypatch):
     await frontend.register_frontend(hass)
     assert len(registered_paths) == len(frontend.FILES)
     assert len(resources_created) == len(frontend.FILES)
-    assert {item["url"] for item in resources_created} == {
+    from urllib.parse import urlsplit
+    assert {urlsplit(item["url"]).path for item in resources_created} == {
         "/family_hub_static/" + name for name in frontend.FILES
     }
+    assert all("?v=" in item["url"] for item in resources_created)
     assert all(item["res_type"] == "module" for item in resources_created)
 
 
@@ -351,9 +353,13 @@ async def test_dashboard_templates_require_admin_and_use_current_members():
 
 
 @pytest.mark.asyncio
-async def test_frontend_registration_skips_yaml_resources_safely():
+async def test_frontend_registration_skips_yaml_resources_safely(monkeypatch):
     """YAML resource mode must not break integration setup."""
     from custom_components.family_hub import frontend
+
+    registered_fallback = []
+    monkeypatch.setattr(frontend.ha_frontend, "add_extra_js_url",
+                        lambda hass, url: registered_fallback.append(url))
 
     class YAMLResources:
         def async_items(self):
@@ -369,6 +375,7 @@ async def test_frontend_registration_skips_yaml_resources_safely():
     await frontend.register_frontend(hass)
     # The static paths are safe in either mode; YAML resources are immutable.
     assert len(registered_paths) == len(frontend.FILES)
+    assert len(registered_fallback) == len(frontend.FILES)
 
 
 @pytest.mark.asyncio
