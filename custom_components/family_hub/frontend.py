@@ -24,10 +24,19 @@ FILES = ("family-hub.js", "family-hub-shopping.js", "family-hub-calendar.js", "f
 
 
 def _module_url(filename):
-    """Build a cache-busted URL from the actual bundled JavaScript contents."""
+    """Build a versioned URL. Call only from the executor-backed URL builder."""
     source = _WWW / filename
     version = sha256(source.read_bytes()).hexdigest()[:12]
     return f"{_BASE_URL}/{filename}?v={version}"
+
+
+def _module_urls():
+    """Hash all bundled files off the Home Assistant event loop.
+
+    Path.read_bytes/open perform disk I/O, so this entire function is run by
+    hass.async_add_executor_job and never called directly by async setup.
+    """
+    return {filename: _module_url(filename) for filename in FILES}
 
 
 async def register_frontend(hass):
@@ -69,23 +78,24 @@ async def async_ensure_lovelace_resources(hass):
         _LOGGER.error("Lovelace has no resource collection for Family Hub cards")
         return False
 
-    mode = getattr(lovelace, "resource_mode", MODE_STORAGE)
-    if mode != MODE_STORAGE or not hasattr(resources, "async_create_item"):
-        # YAML mode is read-only. HA's frontend supports integration-owned
-        # modules as an alternative without editing the user's configuration.
-        # Keep this path distinct from storage resources to avoid duplicates.
-        for filename in FILES:
-            ha_frontend.add_extra_js_url(hass, _module_url(filename))
-        _LOGGER.info(
-            "Registered %d Family Hub modules through frontend YAML-mode fallback",
-            len(FILES),
-        )
-        return True
-
-    # In HA 2026.x the storage collection can exist before being loaded.
-    # Always load it first to preserve all existing resources. Some versions
-    # require the 'loaded' flag to be set explicitly after async_load().
     try:
+        # Path.read_bytes() triggers Home Assistant's blocking-I/O detector
+        # if called on the event loop. Hash files in HA's executor instead.
+        module_urls = await hass.async_add_executor_job(_module_urls)
+        mode = getattr(lovelace, "resource_mode", MODE_STORAGE)
+        if mode != MODE_STORAGE or not hasattr(resources, "async_create_item"):
+            # YAML resources are read-only. Register with HA's frontend
+            # without changing the user's configuration.yaml.
+            for url in module_urls.values():
+                ha_frontend.add_extra_js_url(hass, url)
+            _LOGGER.info(
+                "Registered %d Family Hub modules through frontend YAML-mode fallback",
+                len(FILES),
+            )
+            return True
+
+        # In HA 2026.x the storage collection can exist before being loaded.
+        # Load it before writing to preserve all previously configured resources.
         if not getattr(resources, "loaded", False):
             await resources.async_load()
             resources.loaded = True
@@ -98,7 +108,7 @@ async def async_ensure_lovelace_resources(hass):
         created = 0
         updated = 0
         for filename in FILES:
-            target_url = _module_url(filename)
+            target_url = module_urls[filename]
             base_url = urlsplit(target_url).path
             match = existing.get(base_url)
             if match is None:
