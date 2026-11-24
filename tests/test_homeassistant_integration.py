@@ -375,7 +375,8 @@ async def test_frontend_registration_skips_yaml_resources_safely(monkeypatch):
         side_effect=lambda paths: registered_paths.extend(paths)
     ))
     hass = SimpleNamespace(async_add_executor_job=_executor_job, http=http, data={
-        "lovelace": SimpleNamespace(resources=YAMLResources())
+        "lovelace": SimpleNamespace(resources=YAMLResources()),
+        frontend.ha_frontend.DATA_EXTRA_MODULE_URL: object(),
     })
     await frontend.register_frontend(hass)
     # The static paths are safe in either mode; YAML resources are immutable.
