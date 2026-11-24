@@ -10,7 +10,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from .api import register_api
 from .const import DOMAIN
 from .storage import HouseholdStorage
-from .frontend import register_frontend
+from .frontend import register_frontend, async_ensure_lovelace_resources
 from .dashboard_manager import async_ensure_dashboards_safely
 from .reminder_notifier import async_notify_due_reminders_safely
 
@@ -28,6 +28,9 @@ async def async_setup_entry(hass, entry):
     store = HouseholdStorage(hass)
     await store.load()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = store
+    # Reconcile JavaScript resources again after the config entry loads.
+    # A missing card must not be mistaken for a missing dashboard.
+    await async_ensure_lovelace_resources(hass)
     # The integration is usable immediately: the shared dashboard is created
     # on first setup and missing personal dashboards are created on upgrades.
     # Existing, user-edited dashboards are never overwritten.
