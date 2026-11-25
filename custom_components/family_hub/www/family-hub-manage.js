@@ -172,6 +172,50 @@
     }
 
 
+    /** Select calendars already connected to Home Assistant, including Google.
+     * Google credentials remain managed by Home Assistant, never Family Hub.
+     * Preserve unavailable selections so administrators can remove them.
+     */
+    calendarPicker() {
+      const selected = new Set(this.data?.calendar_entities || []);
+      const states = this._hass?.states || {};
+      const ids = [...new Set([
+        ...Object.keys(states).filter(id => id.startsWith("calendar.")),
+        ...selected,
+      ])].sort((a,b) => (
+        states[a]?.attributes?.friendly_name || a
+      ).localeCompare(states[b]?.attributes?.friendly_name || b));
+      const rows = ids.map(id => {
+        const entity = states[id];
+        const name = entity?.attributes?.friendly_name || id;
+        const provider = this._hass?.entities?.[id]?.platform;
+        const source = provider === "google" ? "Google Calendar" :
+          provider === "remote_calendar" ? "Remote calendar" :
+          provider ? provider.replaceAll("_", " ") : "Home Assistant";
+        return `<label class="calendar-option">
+          <input type="checkbox" data-calendar-id="${esc(id)}"
+            ${selected.has(id) ? "checked" : ""}>
+          <span><strong>${esc(name)}</strong>
+            <small>${esc(id)} · ${entity ? esc(source) : "Not currently available"}</small>
+          </span>
+        </label>`;
+      }).join("");
+      return `<div class="calendar-settings wide">
+        <h3>Connected calendars</h3>
+        <p class="hint">Select which Home Assistant calendars appear alongside
+          Family Hub events. Google calendars shared with your account are
+          supported once Home Assistant exposes them as calendar entities.</p>
+        <div class="calendar-options">${rows ||
+          '<p class="empty">No Home Assistant calendars found. Connect Google Calendar or Remote Calendar first.</p>'}</div>
+        <p class="hint">Google access is managed under
+          <a href="/config/integrations">Home Assistant Integrations</a>.
+          External calendar events are displayed read-only, while Family Hub
+          events can be edited under Manage → Organizer.
+          <a href="https://www.home-assistant.io/integrations/google/"
+             target="_blank" rel="noopener noreferrer">Google Calendar setup</a></p>
+      </div>`;
+    }
+
     /** A selected record becomes an inline form, never a separate popup. */
     editRecord(collection, recordId) {
       this.editing = {collection, recordId};
@@ -468,9 +512,7 @@
           <form id="settings-form" class="fields">
             <label>Points currency<input name="currency_name" required
               value="${esc(data.settings?.currency_name || "Points")}"></label>
-            <label class="wide">Calendars (entity IDs, comma separated)
-              <input name="calendar_entities"
-                value="${esc((data.calendar_entities || []).join(", "))}"></label>
+            ${this.calendarPicker()}
             <label class="wide">Authorized display account IDs
               <input name="display_user_ids"
                 value="${esc((data.settings?.display_user_ids || []).join(", "))}"></label>
@@ -548,6 +590,15 @@
           padding:9px;border-bottom:1px solid var(--divider-color,#8883)}
         .device span{flex:1;min-width:0;overflow-wrap:anywhere}
         .device small{display:block;opacity:.7}.device[hidden]{display:none}
+        .calendar-options{border:1px solid var(--divider-color,#8884);
+          border-radius:12px;max-height:300px;overflow:auto;padding:6px}
+        .calendar-option{display:flex;flex-direction:row;align-items:center;gap:10px;
+          padding:9px;border-bottom:1px solid var(--divider-color,#8883)}
+        .calendar-option:last-child{border-bottom:0}
+        .calendar-option span{flex:1;min-width:0;overflow-wrap:anywhere}
+        .calendar-option strong,.calendar-option small{display:block}
+        .calendar-option small{color:var(--secondary-text-color)}
+        .calendar-settings a{color:var(--primary-color)}
         .dashboard-links li{margin:8px 0}
         .footer{display:flex;justify-content:flex-end;margin-top:16px}
         @media(max-width:520px){
@@ -648,7 +699,8 @@
           .map(item => item.trim()).filter(Boolean);
         this.command("update_settings", {
           currency_name:fields.namedItem("currency_name").value.trim(),
-          calendar_entities:list("calendar_entities"),
+          calendar_entities:[...settings.querySelectorAll("[data-calendar-id]:checked")]
+            .map(input => input.dataset.calendarId),
           display_user_ids:list("display_user_ids"),
         });
       };
