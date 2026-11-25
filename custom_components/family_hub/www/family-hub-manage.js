@@ -380,174 +380,297 @@
       }
     }
 
+
     render() {
       if (!this.shadowRoot) return;
       const data = this.data || {};
-      const members = data.members || [], chores = data.chores || [],
-        rewards = data.rewards || [];
-      const tabs = ["members", "chores", "rewards", "rooms", "dashboards", "settings"];
-      const field = (name, label, type = "text", required = true, value = "") =>
-        `<label>${esc(label)}<input name="${name}" type="${type}"
-          value="${esc(value)}" ${required ? "required" : ""}></label>`;
-      let form = "", list = "";
-      if (this.tab === "members") {
-        form = field("name", "Name") + `<label>Role<select name="role">
-          <option value="child">Child</option><option value="adult">Adult</option></select></label>`
-          + field("color", "Color", "color", false, "#64748b")
-          + field("ha_user_id", "Home Assistant user ID (optional)", "text", false);
-        list = members.map(m => `<div class="line"><span class="dot"
-          style="background:${/^#[0-9a-fA-F]{6}$/.test(m.color) ? m.color : "#64748b"}"></span>
-          <strong>${esc(m.name)}</strong><small>${esc(m.role)}</small></div>`).join("");
-      } else if (this.tab === "chores") {
-        form = field("title", "Chore") + field("points", "Points", "number")
-          + `<label>Repeat<select name="recurrence"><option>daily</option>
-          <option>weekly</option><option>once</option></select></label>
-          <label>Assign to<select name="assignee_ids" multiple required size="4">
-          ${members.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("")}
-          </select></label><label class="checkbox-line"><input type="checkbox"
-          name="approval_required">Requires approval</label>
-          <label class="checkbox-line"><input type="checkbox"
-          name="rotating">Rotate assignment between selected members</label>
-          <label>Days per rotation<input type="number" name="rotation_days"
-            value="7" min="1" max="365"></label>
-          <label>Rotation start date<input type="date" name="rotation_start"
-            value="${[new Date().getFullYear(),
-              String(new Date().getMonth()+1).padStart(2,"0"),
-              String(new Date().getDate()).padStart(2,"0")].join("-")}"></label>`;
-        list = chores.map(c => `<div class="line"><strong>${esc(c.title)}</strong>
-          <small>${Number(c.points) || 0} points · ${esc(c.recurrence)}</small></div>`).join("");
-      } else if (this.tab === "rewards") {
-        form = field("title", "Reward") + field("cost", "Cost", "number");
-        list = rewards.map(r => `<div class="line"><strong>${esc(r.title)}</strong>
-          <small>${Number(r.cost) || 0} points</small></div>`).join("");
-      } else if (this.tab === "settings") {
-        form = field("currency_name", "Points currency name", "text", true,
-          data.settings?.currency_name || "Points")
-          + `<label>Calendar entities (comma separated)<input name="calendar_entities"
-          value="${esc((data.calendar_entities || []).join(", "))}"></label>
-          <label>Home Assistant user IDs allowed to view the read-only wall display
-            (comma separated)<input name="display_user_ids"
-            value="${esc((data.settings?.display_user_ids || []).join(", "))}"></label>`;
-        list = "<p>Choose Home Assistant calendar entities to show beside local family events.</p>";
-      } else if (this.tab === "rooms") {
-        list = this.roomEditor(members);
-      } else if (this.tab === "dashboards") {
-        list = this.dashboardsEditor();
-      }
+      const members = data.members || [];
+      const chores = data.chores || [];
+      const nav = [
+        ["members","Members"], ["chores","Chores"], ["rewards","Rewards"],
+        ["organizer","Organizer"], ["schedules","Schedules"],
+        ["rooms","Rooms"], ["dashboards","Dashboards"], ["settings","Settings"],
+      ];
+      const groups = this.tab === "organizer"
+        ? [["shopping","Shopping"], ["meals","Meals"], ["events","Events"],
+           ["announcements","Announcements"], ["reminders","Reminders"]]
+        : this.tab === "schedules"
+          ? [["routines","Routines"], ["rotations","Household rotations"]]
+          : [["members","Members"],["chores","Chores"],["rewards","Rewards"]]
+            .filter(([key]) => this.tab === key);
+      const names = new Map(members.map(item => [item.id, item.name]));
+      const subtitle = (collection, item) => {
+        if (collection === "members") return item.role + (item.ha_user_id ? " · HA linked" : "");
+        if (collection === "chores") {
+          const people = (item.assignee_ids || []).map(id => names.get(id) || "Member").join(", ");
+          return `${item.points || 0} points · ${item.recurrence} · ${people}${item.rotation_days ? " · rotating" : ""}`;
+        }
+        if (collection === "rewards") return `${item.cost} points`;
+        if (collection === "meals") return `${item.day} · ${item.meal_type}`;
+        if (collection === "events") return new Date(item.starts_at).toLocaleString();
+        if (collection === "reminders") return new Date(item.due_at).toLocaleString();
+        if (collection === "shopping") return `${item.quantity || "1"} · ${item.category || "General"}`;
+        if (collection === "routines") return `${(item.steps || []).length} steps`;
+        if (collection === "rotations") return `${item.days_per_block} days per household`;
+        if (collection === "announcements") return item.message || "";
+        return "";
+      };
+      const headline = (collection, item) => item.name || item.title
+        || (collection === "rotations" ? (item.households || []).join(" / ") : collection);
+      const records = groups.map(([collection, label]) => {
+        const list = data[collection] || [];
+        return `<section class="record-section">
+          <div class="section-heading"><h3>${esc(label)}</h3>
+            <span class="count">${list.length}</span></div>
+          <div class="records">${list.map(item => `<div class="record">
+            ${collection === "members" ? `<span class="avatar"
+              style="--member-color:${/^#[0-9a-f]{6}$/i.test(item.color || "") ? item.color : "#64748b"}">
+              ${esc((item.name || "?").slice(0,1).toUpperCase())}</span>` : ""}
+            <div class="record-main">
+              <strong>${esc(headline(collection,item))}</strong>
+              <small>${esc(subtitle(collection,item))}</small>
+            </div>
+            <div class="record-actions">
+              <button type="button" class="subtle" data-edit-section="${esc(collection)}"
+                data-edit-id="${esc(item.id)}" aria-label="Edit ${esc(headline(collection,item))}">Edit</button>
+              <button type="button" class="subtle danger" data-delete-section="${esc(collection)}"
+                data-delete-id="${esc(item.id)}" aria-label="Delete ${esc(headline(collection,item))}">Delete</button>
+            </div>
+          </div>`).join("") || '<p class="empty">Nothing here yet. Use the form below or the Planning dashboard to add items.</p>'}</div>
+        </section>`;
+      }).join("");
+      const selected = this.editing
+        ? (data[this.editing.collection] || [])
+          .find(item => item.id === this.editing.recordId) : null;
+      const editor = selected ? `<section class="editor" id="edit-area">
+        <div class="section-heading"><h3>Edit ${esc(headline(this.editing.collection,selected))}</h3>
+          <span class="hint">Changes save without recreating the item</span></div>
+        <form id="record-editor" class="fields">
+          ${this.editorFields(this.editing.collection,selected)}
+          <div class="form-actions wide">
+            <button type="submit" class="primary">Save changes</button>
+            <button type="button" class="subtle" id="cancel-edit">Cancel</button>
+          </div>
+        </form></section>` : "";
+      const canCreate = ["members","chores","rewards"].includes(this.tab);
+      const create = canCreate && !selected ? `<section class="editor">
+        <div class="section-heading"><h3>Add ${this.tab === "members" ? "member" :
+          this.tab === "chores" ? "chore" : "reward"}</h3></div>
+        <form id="entry" class="fields">${this.editorFields(this.tab,{})}
+          <div class="form-actions wide"><button class="primary" type="submit">
+            Add ${this.tab === "members" ? "member" : this.tab === "chores" ? "chore" : "reward"}
+          </button></div>
+        </form></section>` : "";
+      const content = this.tab === "rooms" ? this.roomEditor(members)
+        : this.tab === "dashboards" ? this.dashboardsEditor()
+        : this.tab === "settings" ? `<section class="editor">
+          <h3>Household preferences</h3>
+          <form id="settings-form" class="fields">
+            <label>Points currency<input name="currency_name" required
+              value="${esc(data.settings?.currency_name || "Points")}"></label>
+            <label class="wide">Calendars (entity IDs, comma separated)
+              <input name="calendar_entities"
+                value="${esc((data.calendar_entities || []).join(", "))}"></label>
+            <label class="wide">Authorized display account IDs
+              <input name="display_user_ids"
+                value="${esc((data.settings?.display_user_ids || []).join(", "))}"></label>
+            <div class="form-actions wide"><button type="submit" class="primary">Save settings</button></div>
+          </form>
+        </section>`
+        : `${records}${editor}${create}`;
 
-      const ordinary = !["rooms", "dashboards"].includes(this.tab);
       this.shadowRoot.innerHTML = `<style>
+        :host{display:block;color:var(--primary-text-color)}
+        *,*::before,*::after{box-sizing:border-box}
         article{background:var(--ha-card-background,var(--card-background-color,#fff));
-          color:var(--primary-text-color);border-radius:14px;padding:18px}
-        nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
-        button{background:var(--primary-color,#2979ff);color:#fff;border:0;
-          border-radius:8px;padding:9px 12px;cursor:pointer}
+          border-radius:var(--ha-card-border-radius,18px);padding:clamp(14px,3vw,24px)}
+        h2,h3,p{margin-top:0}h2{font-size:1.35rem;letter-spacing:-.025em}
+        h3{font-size:1.04rem}small,.hint,.empty{color:var(--secondary-text-color)}
+        .intro{display:flex;justify-content:space-between;align-items:start;gap:12px;
+          margin-bottom:14px}.intro p{color:var(--secondary-text-color);font-size:.88rem;margin:0}
+        .intro strong{display:block;font-size:1.45rem;letter-spacing:-.03em}
+        .overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+          gap:8px;margin-bottom:16px}
+        .metric{border:1px solid var(--divider-color,#4444);border-radius:12px;
+          padding:10px 12px;background:var(--secondary-background-color,#8881)}
+        .metric b{font-size:1.35rem;display:block}.metric small{font-size:.75rem}
+        nav{display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 18px;padding-bottom:12px;
+          border-bottom:1px solid var(--divider-color,#8884)}
+        button{font:inherit;border-radius:10px;min-height:38px;padding:8px 12px;
+          cursor:pointer;border:1px solid transparent}
+        nav button,.subtle{background:var(--secondary-background-color,#8882);
+          color:var(--primary-text-color);border-color:var(--divider-color,#8884)}
+        nav button[aria-current="true"]{background:var(--primary-color,#03a9f4);
+          color:#fff;border-color:var(--primary-color,#03a9f4)}
+        .primary,#room-form button[type=submit],#create-dashboards,#refresh{background:var(--primary-color,#03a9f4);
+          color:#fff;border-color:var(--primary-color,#03a9f4)}
+        .danger{color:var(--error-color,#f66)}
         button:disabled{opacity:.5;cursor:not-allowed}
-        button[aria-current="true"]{outline:2px solid var(--primary-text-color)}
-        form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
-        label{display:flex;flex-direction:column;gap:5px;font-size:.9rem}
-        input,select{font:inherit;min-width:0;padding:8px;border-radius:8px}
-        .checkbox-line{flex-direction:row;align-items:center}
-        .line{display:flex;gap:10px;align-items:center;padding:9px 0;
-          border-bottom:1px solid var(--divider-color,#ddd)}
-        .line strong{flex:1}.dot{width:14px;height:14px;border-radius:50%}
-        .error{color:var(--error-color,#c33)}.success{color:var(--primary-text-color)}
-        #room-form{display:flex;flex-direction:column;align-items:stretch}
-        .device-list{max-height:350px;overflow:auto;border:1px solid var(--divider-color,#ddd);
-          border-radius:8px;padding:6px}
-        .device{display:flex;align-items:center;flex-direction:row;gap:12px;
-          padding:7px;border-bottom:1px solid var(--divider-color,#ddd)}
-        .device[hidden]{display:none}.device span{flex:1}.device small{display:block;opacity:.7}
-        .dashboard-links li{margin:7px 0}
-      </style><article><h2>Manage Family Hub</h2>
-      <nav>${tabs.map(t => `<button data-tab="${t}" aria-current="${this.tab === t}">
-        ${t.charAt(0).toUpperCase() + t.slice(1)}</button>`).join("")}</nav>
-      ${this.error ? `<p class="error" role="alert">${esc(this.error)}</p>` : ""}
-      ${this.notice ? `<p class="success" role="status">${esc(this.notice)}</p>` : ""}
-      <section>${list || (ordinary ? "<p>Nothing here yet.</p>" : "")}</section>
-      ${ordinary ? `<h3>${this.tab === "settings" ? "Preferences" : "Add " + this.tab.slice(0,-1)}</h3>
-        <form id="entry">${form}<button type="submit">Save</button></form>` : ""}
-      <p><button id="refresh" type="button">Refresh</button></p></article>`;
+        .section-heading{display:flex;align-items:baseline;justify-content:space-between;
+          gap:8px;margin:8px 0 10px}.section-heading h3{margin:0}
+        .count{padding:3px 9px;border-radius:30px;background:var(--secondary-background-color,#8882);
+          font-size:.8rem;color:var(--secondary-text-color)}
+        .record-section{margin-bottom:18px}
+        .records{border:1px solid var(--divider-color,#8884);border-radius:14px;
+          overflow:hidden}.record{display:flex;align-items:center;gap:10px;padding:12px 14px;
+          border-bottom:1px solid var(--divider-color,#8883)}
+        .record:last-child{border-bottom:0}
+        .record-main{flex:1;min-width:0}
+        .record-main strong{display:block;overflow-wrap:anywhere}
+        .record-main small{display:block;font-size:.81rem;margin-top:3px;overflow-wrap:anywhere}
+        .record-actions{display:flex;gap:6px;flex-wrap:wrap}
+        .record-actions button{min-height:33px;font-size:.83rem;padding:6px 10px}
+        .avatar{--member-color:#64748b;background:color-mix(in srgb,var(--member-color) 18%,transparent);
+          color:var(--member-color);width:38px;height:38px;flex-shrink:0;border-radius:13px;
+          display:grid;place-items:center;font-weight:800}
+        .empty{padding:15px;font-size:.86rem;margin:0}
+        .editor{padding:16px;border:1px solid var(--divider-color,#8884);
+          border-radius:14px;background:var(--secondary-background-color,#8881);margin:14px 0}
+        .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+        label{display:flex;flex-direction:column;gap:6px;font-size:.89rem}
+        input,select,textarea{font:inherit;width:100%;min-width:0;max-width:100%;
+          background:var(--input-fill,var(--card-background-color,#fff));
+          color:var(--primary-text-color);
+          border:1px solid var(--divider-color,#8886);border-radius:10px;padding:10px}
+        input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
+        input[type=color]{height:43px;padding:3px}
+        select[multiple]{min-height:88px}textarea{resize:vertical}
+        label.wide,.wide{grid-column:1/-1}
+        label.check{flex-direction:row;align-items:center}
+        .form-actions{display:flex;gap:8px;flex-wrap:wrap}
+        .error{color:var(--error-color,#f55)}.success{color:var(--success-color,#4caf50)}
+        #room-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+          align-items:end;gap:14px}
+        #room-form h3,#room-form p,#room-form .device-list,#room-form button{grid-column:1/-1}
+        .device-list{max-height:330px;overflow:auto;border:1px solid var(--divider-color,#8884);
+          border-radius:12px;padding:4px}
+        .device{display:flex;align-items:center;flex-direction:row;gap:10px;
+          padding:9px;border-bottom:1px solid var(--divider-color,#8883)}
+        .device span{flex:1;min-width:0;overflow-wrap:anywhere}
+        .device small{display:block;opacity:.7}.device[hidden]{display:none}
+        .dashboard-links li{margin:8px 0}
+        .footer{display:flex;justify-content:flex-end;margin-top:16px}
+        @media(max-width:520px){
+          .fields,#room-form{grid-template-columns:minmax(0,1fr)}
+          .record{flex-wrap:wrap}.record-main{min-width:60%}
+          .record-actions{width:100%;padding-left:48px}
+          .overview{gap:5px}.metric{padding:9px}.metric b{font-size:1.16rem}
+          nav button{flex:1 0 auto}
+        }
+      </style><article>
+        <div class="intro"><div><strong>Manage Family Hub</strong>
+          <p>People, schedules and household settings</p></div></div>
+        <div class="overview">
+          <div class="metric"><b>${members.length}</b><small>Members</small></div>
+          <div class="metric"><b>${chores.length}</b><small>Chores</small></div>
+          <div class="metric"><b>${(data.completions || []).filter(item => item.status === "pending").length}</b>
+            <small>Awaiting approval</small></div>
+        </div>
+        <nav aria-label="Family Hub sections">
+          ${nav.map(([key,label]) => `<button type="button" data-tab="${key}"
+            aria-current="${this.tab === key}">${label}</button>`).join("")}
+        </nav>
+        ${this.error ? `<p class="error" role="alert">${esc(this.error)}</p>` : ""}
+        ${this.notice ? `<p class="success" role="status">${esc(this.notice)}</p>` : ""}
+        ${content}
+        <div class="footer"><button id="refresh" type="button">Refresh data</button></div>
+      </article>`;
 
       const root = this.shadowRoot;
       root.querySelectorAll("[data-tab]").forEach(button => {
         button.onclick = () => {
           this.tab = button.dataset.tab;
+          this.editing = null;
+          this.error = "";
           this.notice = "";
           this.render();
         };
       });
       root.querySelector("#refresh").onclick = () => this.refresh();
-
+      root.querySelectorAll("[data-edit-section]").forEach(button => {
+        button.onclick = () => this.editRecord(
+          button.dataset.editSection, button.dataset.editId
+        );
+      });
+      root.querySelectorAll("[data-delete-section]").forEach(button => {
+        button.onclick = () => this.deleteRecord(
+          button.dataset.deleteSection, button.dataset.deleteId
+        );
+      });
+      const editorForm = root.querySelector("#record-editor");
+      if (editorForm) editorForm.onsubmit = event => {
+        event.preventDefault();
+        this.saveEditor(this.editing.collection, this.editing.recordId, editorForm);
+      };
+      const cancel = root.querySelector("#cancel-edit");
+      if (cancel) cancel.onclick = () => {
+        this.editing = null; this.error = ""; this.render();
+      };
       if (this.tab === "dashboards") {
         root.querySelector("#create-dashboards").onclick = () => this.installDashboards();
-        return;
       }
       if (this.tab === "rooms") {
         const memberControl = root.querySelector("#room-member");
-        if (!memberControl) return;
-        memberControl.onchange = () => {
-          this.roomMemberId = memberControl.value;
-          this.roomSelected = new Set(
-            this.data?.room_entities?.[this.roomMemberId] || []
-          );
-          this.render();
-        };
-        root.querySelector("#room-search").oninput = event => {
-          const query = event.target.value.toLowerCase().trim();
-          root.querySelectorAll("[data-room-label]").forEach(row => {
-            row.hidden = !row.dataset.roomLabel.includes(query);
-          });
-        };
-        root.querySelectorAll("[data-room-entity]").forEach(box => {
-          box.onchange = () => {
-            if (box.checked) this.roomSelected.add(box.dataset.roomEntity);
-            else this.roomSelected.delete(box.dataset.roomEntity);
+        if (memberControl) {
+          memberControl.onchange = () => {
+            this.roomMemberId = memberControl.value;
+            this.roomSelected = new Set(
+              this.data?.room_entities?.[this.roomMemberId] || []
+            );
+            this.render();
           };
-        });
-        root.querySelector("#room-form").onsubmit = event => {
-          event.preventDefault();
-          this.command("set_room_entities", {
-            member_id:this.roomMemberId,
-            entity_ids:[...this.roomSelected]
+          root.querySelector("#room-search").oninput = event => {
+            const query = event.target.value.toLowerCase().trim();
+            root.querySelectorAll("[data-room-label]").forEach(row => {
+              row.hidden = !row.dataset.roomLabel.includes(query);
+            });
+          };
+          root.querySelectorAll("[data-room-entity]").forEach(box => {
+            box.onchange = () => {
+              if (box.checked) this.roomSelected.add(box.dataset.roomEntity);
+              else this.roomSelected.delete(box.dataset.roomEntity);
+            };
           });
-        };
-        return;
+          root.querySelector("#room-form").onsubmit = event => {
+            event.preventDefault();
+            this.command("set_room_entities", {
+              member_id:this.roomMemberId,
+              entity_ids:[...this.roomSelected]
+            });
+          };
+        }
       }
-
-      const entry = root.querySelector("#entry");
-      if (!entry) return;
-      entry.onsubmit = event => {
+      const settings = root.querySelector("#settings-form");
+      if (settings) settings.onsubmit = event => {
         event.preventDefault();
-        const f = event.target.elements;
-        const value = name => f.namedItem(name).value;
-        if (this.tab === "members") return this.command("add_member", {
-          name:value("name"),role:value("role"),
-          color:value("color") || "#64748b",
-          ...(value("ha_user_id").trim() ? {ha_user_id:value("ha_user_id").trim()} : {})
-        });
-        if (this.tab === "chores") return this.command("add_chore", {
-          title:value("title"),points:Number(value("points")),
-          recurrence:value("recurrence"),
-          approval_required:f.namedItem("approval_required").checked,
-          assignee_ids:[...f.namedItem("assignee_ids").selectedOptions].map(o => o.value),
-          ...(f.namedItem("rotating").checked ? {
-            rotation_days:Number(value("rotation_days")),
-            rotation_start:value("rotation_start")
-          } : {})
-        });
-        if (this.tab === "rewards") return this.command("add_reward", {
-          title:value("title"),cost:Number(value("cost"))
-        });
-        if (this.tab === "settings") return this.command("update_settings", {
-          currency_name:value("currency_name"),
-          calendar_entities:value("calendar_entities").split(",")
-            .map(s => s.trim()).filter(Boolean),
-          display_user_ids:value("display_user_ids").split(",")
-            .map(s => s.trim()).filter(Boolean)
+        const fields = settings.elements;
+        const list = name => fields.namedItem(name).value.split(",")
+          .map(item => item.trim()).filter(Boolean);
+        this.command("update_settings", {
+          currency_name:fields.namedItem("currency_name").value.trim(),
+          calendar_entities:list("calendar_entities"),
+          display_user_ids:list("display_user_ids"),
         });
       };
+      const entry = root.querySelector("#entry");
+      if (entry) entry.onsubmit = event => {
+        event.preventDefault();
+        try {
+          const payload = this.collectFields(this.tab, entry);
+          if (this.tab === "members" && !payload.ha_user_id) delete payload.ha_user_id;
+          if (this.tab === "chores" && !payload.rotation_days) {
+            delete payload.rotation_days;
+            delete payload.rotation_start;
+          }
+          const commands = {members:"add_member", chores:"add_chore", rewards:"add_reward"};
+          this.command(commands[this.tab], payload);
+        } catch (error) {
+          this.error = String(error.message || error);
+          this.render();
+        }
+      };
     }
+
   }
 
   if (!customElements.get("family-hub-manage-card"))
