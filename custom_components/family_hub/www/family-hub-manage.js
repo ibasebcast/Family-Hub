@@ -21,6 +21,7 @@
       this.error = "";
       this.notice = "";
       this.tab = "members";
+      this.editing = null;
       this.roomMemberId = null;
       this.roomSelected = new Set();
       this.installing = false;
@@ -168,6 +169,215 @@
           item => `<li><a href="/${esc(item.path)}/">${esc(item.title)}</a></li>`
         ).join("")}</ul>` : ""}
       </section>`;
+    }
+
+
+    /** A selected record becomes an inline form, never a separate popup. */
+    editRecord(collection, recordId) {
+      this.editing = {collection, recordId};
+      this.error = "";
+      this.notice = "";
+      this.render();
+    }
+
+    async deleteRecord(collection, recordId) {
+      const record = (this.data?.[collection] || [])
+        .find(item => item.id === recordId);
+      if (!record) return;
+      const name = record.title || record.name || collection;
+      if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+      if (this.editing?.recordId === recordId) this.editing = null;
+      await this.command("delete_record", {collection, record_id: recordId});
+    }
+
+    /** Render the editable fields for each persisted record collection. */
+    editorFields(collection, record = {}) {
+      const members = this.data?.members || [];
+      const field = (name, label, value = "", type = "text", required = false) =>
+        `<label>${esc(label)}<input name="${esc(name)}" type="${esc(type)}"
+          value="${esc(value ?? "")}" ${required ? "required" : ""}></label>`;
+      const pick = (name, label, choices, selected = []) =>
+        `<label>${esc(label)}<select name="${esc(name)}" multiple size="4">
+          ${choices.map(option => `<option value="${esc(option.id)}"
+            ${selected.includes(option.id) ? "selected" : ""}>
+            ${esc(option.name)}</option>`).join("")}</select></label>`;
+      const textarea = (name, label, value = "") =>
+        `<label class="wide">${esc(label)}
+          <textarea name="${esc(name)}" rows="3">${esc(value)}</textarea></label>`;
+      const options = (name, label, choices, current) =>
+        `<label>${esc(label)}<select name="${esc(name)}">
+          ${choices.map(value => `<option value="${esc(value)}"
+            ${value === current ? "selected" : ""}>${esc(value)}</option>`).join("")}
+          </select></label>`;
+      const memberOptions = (name, label, values) =>
+        pick(name, label, members, values || []);
+      const dateTime = value => {
+        if (!value) return "";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "";
+        const two = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${two(d.getMonth()+1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
+      };
+
+      if (collection === "members") return [
+        field("name", "Name", record.name, "text", true),
+        options("role", "Role", ["child", "adult"], record.role || "child"),
+        field("color", "Color", record.color || "#64748b", "color"),
+        field("ha_user_id", "Home Assistant user ID (optional)", record.ha_user_id || ""),
+      ].join("");
+      if (collection === "chores") return [
+        field("title", "Chore", record.title, "text", true),
+        field("points", "Points", record.points ?? 0, "number", true),
+        options("recurrence", "Repeat", ["daily", "weekly", "once"], record.recurrence || "daily"),
+        memberOptions("assignee_ids", "Assign to", record.assignee_ids),
+        textarea("description", "Instructions (optional)", record.description || ""),
+        `<label class="check"><input type="checkbox" name="approval_required"
+          ${record.approval_required ? "checked" : ""}>Requires approval</label>`,
+        `<label class="check"><input type="checkbox" name="rotating"
+          ${record.rotation_days ? "checked" : ""}>Rotate between selected members</label>`,
+        field("rotation_days", "Days per rotation", record.rotation_days || 7, "number"),
+        field("rotation_start", "Rotation start", record.rotation_start || this.todayKey(), "date"),
+      ].join("");
+      if (collection === "rewards") return [
+        field("title", "Reward", record.title, "text", true),
+        field("cost", "Point cost", record.cost ?? 0, "number", true),
+        textarea("description", "Description", record.description || ""),
+      ].join("");
+      if (collection === "shopping") return [
+        field("title", "Item", record.title, "text", true),
+        field("quantity", "Quantity", record.quantity || "1"),
+        field("category", "Category", record.category || "General"),
+        `<label class="check"><input type="checkbox" name="checked"
+          ${record.checked ? "checked" : ""}>Purchased</label>`,
+      ].join("");
+      if (collection === "meals") return [
+        field("title", "Meal", record.title, "text", true),
+        field("day", "Date", record.day || this.todayKey(), "date", true),
+        options("meal_type", "Meal type", ["breakfast", "lunch", "dinner", "snack"],
+          record.meal_type || "dinner"),
+        textarea("notes", "Notes", record.notes || ""),
+      ].join("");
+      if (collection === "events") return [
+        field("title", "Event", record.title, "text", true),
+        field("starts_at", "Starts", dateTime(record.starts_at), "datetime-local", true),
+        field("ends_at", "Ends", dateTime(record.ends_at), "datetime-local", true),
+        memberOptions("member_ids", "Members (optional)", record.member_ids),
+        textarea("notes", "Notes", record.notes || ""),
+      ].join("");
+      if (collection === "announcements") return [
+        field("title", "Title", record.title, "text", true),
+        textarea("message", "Message", record.message || ""),
+      ].join("");
+      if (collection === "reminders") return [
+        field("title", "Reminder", record.title, "text", true),
+        field("due_at", "When", dateTime(record.due_at), "datetime-local", true),
+        memberOptions("member_ids", "Members (none means everyone)", record.member_ids),
+        textarea("message", "Details", record.message || ""),
+      ].join("");
+      if (collection === "routines") return [
+        field("title", "Routine", record.title, "text", true),
+        memberOptions("member_ids", "Assigned members", record.member_ids),
+        textarea("steps", "Checklist steps, one per line",
+          (record.steps || []).map(step => step.title).join("\\n")),
+      ].join("");
+      if (collection === "rotations") return [
+        field("starts_on", "Start date", record.starts_on, "date", true),
+        field("days_per_block", "Days per household", record.days_per_block || 7, "number", true),
+        memberOptions("member_ids", "Assigned members", record.member_ids),
+        textarea("households", "Households, one per line",
+          (record.households || []).join("\\n")),
+      ].join("");
+      return "";
+    }
+
+    todayKey() {
+      const today = new Date();
+      const two = n => String(n).padStart(2, "0");
+      return `${today.getFullYear()}-${two(today.getMonth()+1)}-${two(today.getDate())}`;
+    }
+
+    /** Convert current form fields to the backend's validated edit schema. */
+    collectFields(collection, form, original = {}) {
+      const f = form.elements;
+      const value = name => f.namedItem(name)?.value || "";
+      const selected = name => [...(f.namedItem(name)?.selectedOptions || [])]
+        .map(option => option.value);
+      const checked = name => Boolean(f.namedItem(name)?.checked);
+      const iso = name => {
+        const time = new Date(value(name));
+        if (Number.isNaN(time.getTime())) throw new Error("Choose a valid date and time");
+        return time.toISOString();
+      };
+      if (collection === "members") return {
+        name:value("name").trim(), role:value("role"),
+        color:value("color"), ha_user_id:value("ha_user_id").trim() || null,
+      };
+      if (collection === "chores") return {
+        title:value("title").trim(), points:Number(value("points")),
+        recurrence:value("recurrence"), description:value("description"),
+        assignee_ids:selected("assignee_ids"),
+        approval_required:checked("approval_required"),
+        rotation_days:checked("rotating") ? Number(value("rotation_days")) : null,
+        rotation_start:checked("rotating") ? value("rotation_start") : null,
+      };
+      if (collection === "rewards") return {
+        title:value("title").trim(), cost:Number(value("cost")),
+        description:value("description"),
+      };
+      if (collection === "shopping") return {
+        title:value("title").trim(), quantity:value("quantity"),
+        category:value("category"), checked:checked("checked"),
+      };
+      if (collection === "meals") return {
+        title:value("title").trim(), day:value("day"),
+        meal_type:value("meal_type"), notes:value("notes"),
+      };
+      if (collection === "events") return {
+        title:value("title").trim(), starts_at:iso("starts_at"),
+        ends_at:iso("ends_at"), member_ids:selected("member_ids"),
+        notes:value("notes"),
+      };
+      if (collection === "announcements") return {
+        title:value("title").trim(), message:value("message"),
+      };
+      if (collection === "reminders") return {
+        title:value("title").trim(), due_at:iso("due_at"),
+        member_ids:selected("member_ids"), message:value("message"),
+      };
+      if (collection === "routines") {
+        const steps = value("steps").split("\\n").map(x => x.trim()).filter(Boolean);
+        return {
+          title:value("title").trim(),
+          member_ids:selected("member_ids"),
+          steps:steps.map((title, i) => ({
+            ...(original.steps?.[i]?.id ? {id:original.steps[i].id} : {}),
+            title,
+          })),
+        };
+      }
+      if (collection === "rotations") return {
+        starts_on:value("starts_on"), days_per_block:Number(value("days_per_block")),
+        member_ids:selected("member_ids"),
+        households:value("households").split("\\n").map(x => x.trim()).filter(Boolean),
+      };
+      throw new Error("Unsupported editing collection");
+    }
+
+    async saveEditor(collection, recordId, form) {
+      try {
+        const original = (this.data?.[collection] || []).find(item => item.id === recordId);
+        if (!original) throw new Error("Record not found");
+        const changes = this.collectFields(collection, form, original);
+        await this._hass.callWS({
+          type:"family_hub/edit_record", collection, record_id:recordId, changes
+        });
+        this.editing = null;
+        this.notice = "Changes saved";
+        await this.refresh();
+      } catch (error) {
+        this.error = String(error.message || error);
+        this.render();
+      }
     }
 
     render() {
