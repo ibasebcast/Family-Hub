@@ -3,16 +3,30 @@
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const style=`
+    :host{display:block;color:var(--primary-text-color)}
+    *,*::before,*::after{box-sizing:border-box}
     article{background:var(--ha-card-background,var(--card-background-color,#fff));
-      color:var(--primary-text-color);padding:18px;border-radius:14px}
-    .item{display:flex;align-items:center;gap:12px;padding:10px 0;
-      border-bottom:1px solid var(--divider-color,#ddd)}
-    .item span{flex:1} .item small{display:block;opacity:.7}
-    form{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-    input,select{font:inherit;min-width:0;padding:8px;border-radius:8px;flex:1}
-    button{font:inherit;padding:8px 12px;border:0;border-radius:8px;
-      background:var(--primary-color,#2979ff);color:white;cursor:pointer}
-    .error{color:var(--error-color,#c33)}
+      padding:clamp(15px,3vw,22px);border-radius:var(--ha-card-border-radius,18px)}
+    h2{margin:0 0 16px;font-size:1.22rem;letter-spacing:-.025em}
+    .item{display:flex;align-items:center;gap:12px;padding:12px 0;
+      border-bottom:1px solid var(--divider-color,#8884)}
+    .item span{min-width:0;flex:1;overflow-wrap:anywhere}
+    .item small{display:block;color:var(--secondary-text-color);font-size:.8rem;margin-top:4px}
+    form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;align-items:end;margin:16px 0}
+    input,select,textarea{font:inherit;width:100%;max-width:100%;min-width:0;
+      padding:10px;color:var(--primary-text-color);
+      background:var(--input-fill,var(--card-background-color,#fff));
+      border:1px solid var(--divider-color,#8886);border-radius:10px}
+    button{font:inherit;padding:9px 12px;border:0;border-radius:10px;
+      background:var(--primary-color,#03a9f4);color:#fff;cursor:pointer;min-height:38px}
+    button[data-delete],button[data-remove],#refresh{background:var(--secondary-background-color,#8882);
+      color:var(--primary-text-color);border:1px solid var(--divider-color,#8884)}
+    .error{color:var(--error-color,#f55)}
+    .footer{font-size:.8rem;color:var(--secondary-text-color);margin:16px 0 12px}
+    .footer a{color:var(--primary-color,#03a9f4)}
+    @media(max-width:520px){form{grid-template-columns:minmax(0,1fr)}
+      .item{flex-wrap:wrap}.item button{margin-left:auto}}
   `;
   class OrganizerCard extends HTMLElement {
     constructor(){super();this.attachShadow({mode:"open"});this._hass=null;this.data={};this.error="";}
@@ -31,7 +45,7 @@
     show(title,body){
       this.shadowRoot.innerHTML=`<style>${style}</style><article>
         <h2>${esc(title)}</h2>${this.error?`<p class="error" role="alert">${esc(this.error)}</p>`:""}
-        ${body}<button id="refresh">Refresh</button></article>`;
+        ${body}<p class="footer">Edit existing records under <a href="/family-hub/manage">Manage → Organizer</a>.</p><button id="refresh">Refresh</button></article>`;
       this.shadowRoot.querySelector("#refresh").onclick=()=>this.refresh();
     }
   }
