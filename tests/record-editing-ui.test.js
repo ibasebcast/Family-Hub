@@ -152,3 +152,60 @@ test("settings panel renders picker instead of free text calendar IDs",()=>{
   assert.match(card.shadowRoot.innerHTML,/data-calendar-id="calendar.one"/);
   assert.doesNotMatch(card.shadowRoot.innerHTML,/comma separated\).*Calendars/);
 });
+
+
+test("calendar settings persist selected Google calendar IDs through settings API",async()=>{
+  const card=createCard();
+  const sent=[];
+  card._hass={
+    states:{
+      "calendar.shared_google":{attributes:{friendly_name:"Shared calendar"}},
+      "calendar.local":{attributes:{friendly_name:"Local"}},
+    },
+    callWS:async message=>{
+      sent.push(message);
+      if(message.type==="family_hub/state")return card.data;
+      return {};
+    },
+  };
+  card.data={calendar_entities:[],settings:{currency_name:"Points",display_user_ids:[]}};
+  card.tab="settings";
+  let submitted;
+  const fakeSettings={
+    elements:{namedItem(name){
+      return {value:{
+        currency_name:"Points",display_user_ids:"",calendar_entities:""
+      }[name]||""};
+    }},
+    querySelectorAll(selector){
+      assert.equal(selector,"[data-calendar-id]:checked");
+      return [
+        {dataset:{calendarId:"calendar.shared_google"}},
+        {dataset:{calendarId:"calendar.local"}},
+      ];
+    },
+  };
+  card.shadowRoot.querySelector=(selector)=>{
+    if(selector==="#settings-form")return fakeSettings;
+    return {onclick:null,onsubmit:null};
+  };
+  card.render();
+  fakeSettings.onsubmit({preventDefault(){}});
+  await new Promise(resolve=>setImmediate(resolve));
+  submitted=sent.find(item=>item.type==="family_hub/update_settings");
+  assert.ok(submitted);
+  assert.deepEqual(Array.from(submitted.calendar_entities),[
+    "calendar.shared_google","calendar.local",
+  ]);
+});
+
+test("delete confirmation protects records until explicitly accepted",async()=>{
+  const card=createCard();
+  const sent=[];
+  card.data={rewards:[{id:"reward",title:"Generic reward",cost:5}]};
+  card._hass={callWS:async message=>{sent.push(message);return card.data;}};
+  card.render=()=>{};
+  await card.deleteRecord("rewards","reward");
+  assert.equal(sent[0].type,"family_hub/delete_record");
+  assert.equal(sent[0].record_id,"reward");
+});
