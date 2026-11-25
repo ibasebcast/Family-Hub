@@ -84,6 +84,8 @@ def edit_record(data, *, collection, record_id, changes):
             raise ValueError("Home Assistant user is already linked")
 
     elif collection == "chores":
+        if type(candidate.get("points")) is not int:
+            raise ValueError("Chore points must be a whole number")
         _member_ids(data, candidate["assignee_ids"], required=True)
         if not isinstance(candidate.get("approval_required", False), bool):
             raise ValueError("Approval setting must be a boolean")
@@ -97,6 +99,8 @@ def edit_record(data, *, collection, record_id, changes):
             candidate.get("rotation_start"),
         )
     elif collection == "rewards":
+        if type(candidate.get("cost")) is not int:
+            raise ValueError("Reward cost must be a whole number")
         Reward(candidate["title"], candidate["cost"], candidate.get("description", ""))
 
     elif collection == "shopping":
