@@ -6,7 +6,7 @@
   // All-day YYYY-MM-DD strings must not shift with timezone conversion.
   const dayKey = value => {
     const raw = String(value || "");
-    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) return raw.slice(0,10);
     return [date.getFullYear(), String(date.getMonth()+1).padStart(2,"0"),
@@ -47,7 +47,9 @@
     }
     events(){
       return [...this.local.map(event=>({...event,source:"Family"})),
-        ...this.external.map(event=>({...event,source:event.calendar_id||"Calendar"}))]
+        ...this.external.map(event=>({...event,
+          source:this._hass?.states?.[event.calendar_id]?.attributes?.friendly_name
+            || event.calendar_id || "Linked calendar"}))]
         .filter(event=>event.starts_at)
         .sort((a,b)=>String(a.starts_at).localeCompare(String(b.starts_at)));
     }
@@ -96,7 +98,8 @@
           String(cursor.getDate()).padStart(2,"0")].join("-");
         const dayItems=dayEvents(dateKey);
         body=dayItems.map(event=>`<div class="agenda">
-          <b>${escape(new Date(event.starts_at).toLocaleTimeString(undefined,
+          <b>${escape(event.starts_at.length===10 ? "All day" :
+            new Date(event.starts_at).toLocaleTimeString(undefined,
             {hour:"numeric",minute:"2-digit"}))}</b>
           <span>${escape(event.title)}<small>${escape(event.source)}</small></span>
         </div>`).join("") || "<p>No events scheduled for this day.</p>";
@@ -111,13 +114,19 @@
           ||'<p>No upcoming events</p>';
       }
       this.shadowRoot.innerHTML=`<style>
+        :host{display:block;color:var(--primary-text-color)}
+        *,*::before,*::after{box-sizing:border-box}
         article{background:var(--ha-card-background,var(--card-background-color,#fff));
-          border-radius:14px;padding:16px;color:var(--primary-text-color)}
+          border-radius:var(--ha-card-border-radius,18px);
+          padding:clamp(14px,3vw,22px);color:var(--primary-text-color)}
         header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
         h2{flex:1;margin:0;font-size:1.25rem}
         button,select,input{font:inherit;padding:8px;border-radius:8px}
         button{border:0;background:var(--primary-color,#2979ff);color:white;cursor:pointer}
         .calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+        .source-count{background:var(--secondary-background-color,#8882);
+          color:var(--secondary-text-color);border-radius:20px;padding:4px 9px;
+          font-size:.75rem;white-space:nowrap}
         .weekday{text-align:center;padding:8px 0;font-size:.8rem}
         .day{border:1px solid var(--divider-color,#ddd);min-height:90px;
           padding:5px;min-width:0;border-radius:5px}
@@ -126,11 +135,19 @@
           overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .agenda{display:flex;gap:15px;padding:10px 0;border-bottom:1px solid var(--divider-color,#ddd)}
         .agenda span{flex:1}.agenda small{display:block;opacity:.65}
+        .agenda{overflow-wrap:anywhere}
         .error{color:var(--error-color,#c33)}
         form{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
         form input{min-width:0;flex:1}
-        @media(max-width:600px){.day{min-height:58px;padding:2px}
-          .event{font-size:.65rem}.weekday{font-size:.7rem}}
+        @media(max-width:600px){
+          header{gap:6px}h2{font-size:1.12rem;flex-basis:100%}
+          button,select,input{min-width:0;padding:8px}
+          .day{min-height:52px;padding:3px}
+          .event{font-size:.63rem;padding:2px}.weekday{font-size:.68rem}
+          .source-count{font-size:.68rem}
+          form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+          form input:first-child{grid-column:1/-1}
+        }
       </style><article>
         <header><h2>${escape(title)}</h2>
         <button id="prev" aria-label="Previous">‹</button>
@@ -139,7 +156,11 @@
         <select id="view" aria-label="Calendar view">
           ${["day","week","month","agenda"].map(view=>`<option value="${view}"
             ${this.view===view?"selected":""}>${view}</option>`).join("")}
-        </select><button id="refresh">Refresh</button></header>
+        </select><span class="source-count">
+          ${this._hass ? this._hass.states &&
+          Object.keys(this._hass.states).filter(key=>key.startsWith("calendar.")).length
+            : 0} HA calendars available</span>
+        <button id="refresh">Refresh</button></header>
         ${this.error?`<p class="error" role="alert">${escape(this.error)}</p>`:""}
         ${body}
         ${this.config?.read_only ? "" : `<form id="add">
