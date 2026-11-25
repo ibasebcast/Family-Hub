@@ -66,6 +66,47 @@ locally created Family Hub events. Calendar access uses Home
 Assistant's existing configured calendar integrations and does not require
 separate Google credentials in Family Hub.
 
+## Editing existing household items
+
+The redesigned **Manage** dashboard provides item lists with **Edit** and
+**Delete** controls. Choose **Save changes** to update a record in place or
+**Cancel** to leave it unchanged. Member profiles, chores, rewards, shopping,
+meals, local calendar events, announcements, reminders, routines and household
+rotations can be modified without deleting and recreating them.
+
+The backend preserves original record IDs, existing point transactions and
+chore-completion history. Deletion is blocked if it would orphan financial
+or completion records. Routine steps with completed history cannot be removed.
+The shopping card also supports quick inline editing.
+
+Updated member profiles and task summaries are optimized for small phones,
+while Family Hub uses native Home Assistant colors for light and dark themes.
+
+## Connect a Google shared calendar
+
+1. In **Home Assistant → Settings → Devices & services**, configure
+   [Google Calendar](https://www.home-assistant.io/integrations/google/)
+   for the account that has access to the shared calendar.
+2. Make sure the calendar is visible in Google Calendar and has a
+   `calendar.*` entity in Home Assistant. A shared calendar may need to be
+   added to **My Calendars** and the Google integration reloaded. Home Assistant
+   manages the Google login, permissions and synchronization.
+3. Open **Family Hub → Manage → Settings → Connected calendars**. Tick the
+   shared calendar and save the settings. You may select several calendars.
+4. Open the Family Hub Planning view to see Google/shared events alongside
+   locally created Family Hub events, with their source calendar names.
+
+A public/shared Google iCal feed may alternatively be connected through
+Home Assistant's [Remote Calendar](https://www.home-assistant.io/integrations/remote_calendar)
+integration, which exposes another selectable calendar entity.
+
+**Important:** Family Hub reads connected Google and remote calendar events,
+but does not modify them or store Google account credentials. You can edit
+Family Hub-created calendar events under **Manage → Organizer**. External
+calendar edits happen in Google Calendar or the connected provider.
+Calendar sharing must grant the Home Assistant account permission to see the
+event details; free/busy-only sharing cannot reveal event titles.
+
 ## Safety and compatibility
 
 - Household data is stored in Home Assistant's private storage directory.

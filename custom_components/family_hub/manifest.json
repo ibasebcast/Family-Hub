@@ -1,7 +1,7 @@
 {
   "domain": "family_hub",
   "name": "Family Hub",
-  "version": "0.1.0-dev2",
+  "version": "0.1.0-dev3",
   "documentation": "https://github.com/ibasebcast/Family-Hub",
   "issue_tracker": "https://github.com/ibasebcast/Family-Hub/issues",
   "config_flow": true,

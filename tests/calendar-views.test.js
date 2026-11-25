@@ -71,3 +71,39 @@ test("day view shows events on the local calendar day, including UTC timestamps"
     else process.env.TZ = previous;
   }
 });
+
+
+test("Google shared calendar events retain provider name and local dates",()=>{
+  const oldTZ=process.env.TZ;
+  try {
+    process.env.TZ="America/New_York";
+    const card=calendar();
+    card.view="day";
+    card.cursor=new Date(2026,10,24);
+    card._hass={states:{
+      "calendar.shared_family":{attributes:{friendly_name:"Family Shared Google"}},
+    }};
+    card.external=[
+      {title:"Shared calendar dinner",
+       calendar_id:"calendar.shared_family",
+       starts_at:"2026-11-24T23:30:00Z"},
+      {title:"All-day event",
+       calendar_id:"calendar.shared_family",
+       starts_at:"2026-11-24"},
+      {title:"Tomorrow",
+       calendar_id:"calendar.shared_family",
+       starts_at:"2026-11-25T14:00:00Z"},
+    ];
+    card.render();
+    const html=card.shadowRoot.innerHTML;
+    assert.match(html,/Shared calendar dinner/);
+    assert.match(html,/Family Shared Google/);
+    assert.match(html,/All-day event/);
+    assert.match(html,/All day/);
+    assert.doesNotMatch(html,/Tomorrow/);
+    assert.doesNotMatch(html,/family_hub\/edit_record/);
+  } finally {
+    if(oldTZ===undefined)delete process.env.TZ;
+    else process.env.TZ=oldTZ;
+  }
+});
