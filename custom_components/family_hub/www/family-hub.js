@@ -236,6 +236,7 @@ class FamilyHubMemberCard extends FamilyHubBase {
     // turn it is. Display and claim requests use the local calendar day.
     const utcDay = key => Math.floor(Date.parse(key + "T00:00:00Z") / 86400000);
     const away = data.presence?.[member.id] === false;
+    let doneCount = 0;
     const rows = chores.map(chore => {
       const rotating = Boolean(chore.rotation_days && chore.rotation_start);
       const dayIndex = rotating
@@ -251,6 +252,7 @@ class FamilyHubMemberCard extends FamilyHubBase {
         chore.recurrence === "weekly" ? dateKey(monday) : dateKey(today);
       const claimed = (data.completions || []).find(c => c.chore_id === chore.id &&
         c.member_id === member.id && c.period === period && c.status !== "rejected");
+      if (claimed) doneCount++;
       return `<div class="item">
       <div><strong>${escapeHtml(chore.title)}</strong>
       <div class="muted">${escapeHtml(chore.recurrence)} · ${chore.points} points</div></div>
@@ -265,12 +267,27 @@ class FamilyHubMemberCard extends FamilyHubBase {
       <span>${escapeHtml(reward.title)} · ${reward.cost} points</span>
       <button data-reward="${escapeHtml(reward.id)}" ${total < reward.cost ? "disabled" : ""}>
       Redeem</button></div>`).join("");
-    this.shadowRoot.innerHTML = this.shell(`<h2>${escapeHtml(member.name)}</h2>
-      <div class="tile"><strong>${total}</strong>
-      ${escapeHtml(data.settings?.currency_name || "Points")}</div>
-      <h3>Chores</h3>${rows || '<p class="muted">No assigned chores.</p>'}
-      <h3>Rewards</h3>${rewards || '<p class="muted">No rewards available.</p>'}
-      <button id="refresh">Refresh</button>`);
+    const percent = chores.length ? Math.round(100*doneCount/chores.length) : 0;
+    const dateLabel = today.toLocaleDateString(undefined,{
+      weekday:"long",month:"short",day:"numeric"
+    });
+    this.shadowRoot.innerHTML = this.shell(`
+      <div class="hero"><div><span class="eyebrow">${escapeHtml(dateLabel)}</span>
+        <h2>${escapeHtml(member.name)}'s day</h2>
+        <small>${away ? "Away · chores paused" : "Ready for today's tasks"}</small>
+      </div><span class="date">${away ? "Away" : "Home"}</span></div>
+      <div class="metrics">
+        <div class="metric"><b>${total}</b><small>${escapeHtml(data.settings?.currency_name || "Points")}</small></div>
+        <div class="metric"><b>${doneCount}/${chores.length}</b><small>Chores claimed</small></div>
+        <div class="metric"><b>${(data.rewards || []).length}</b><small>Available rewards</small></div>
+      </div>
+      <div class="section-head"><h3>Today's chores</h3><span class="count">${percent}% complete</span></div>
+      <div class="progress" role="progressbar" aria-valuenow="${percent}"
+        aria-valuemin="0" aria-valuemax="100"><span style="width:${percent}%"></span></div>
+      <div class="summary">${rows || '<p class="empty">No chores assigned.</p>'}</div>
+      <div class="section-head"><h3>Rewards</h3><span class="count">Spend points</span></div>
+      <div class="summary">${rewards || '<p class="empty">No rewards available.</p>'}</div>
+      <div class="toolbar"><button class="outline" id="refresh">Refresh</button></div>`);
     this.shadowRoot.querySelectorAll("[data-chore]").forEach(button =>
       button.addEventListener("click", () => this.mutate("claim_chore", {
         chore_id:button.dataset.chore, member_id:member.id
