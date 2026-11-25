@@ -389,14 +389,35 @@
         member_ids:selected("member_ids"), message:value("message"),
       };
       if (collection === "routines") {
-        const steps = value("steps").split("\n").map(x => x.trim()).filter(Boolean);
+        const titles = value("steps").split("\n").map(x => x.trim()).filter(Boolean);
+        const previous = original.steps || [];
+        const assigned = new Set();
+        // Preserve stable step IDs by exact title first, so removing the first
+        // line cannot silently rename the second step to the first step's ID.
+        // The backend refuses to remove steps with completed history.
+        const mapped = titles.map(title => {
+          const previousStep = previous.find(step =>
+            step.title === title && !assigned.has(step.id));
+          if (previousStep) {
+            assigned.add(previousStep.id);
+            return {id:previousStep.id,title};
+          }
+          return {title};
+        });
+        // Remaining unmatched edits may be renames. Bind to their original
+        // position only when that identity was not already matched elsewhere.
+        mapped.forEach((step,index) => {
+          if (step.id) return;
+          const candidate = previous[index];
+          if (candidate && !assigned.has(candidate.id)) {
+            step.id = candidate.id;
+            assigned.add(candidate.id);
+          }
+        });
         return {
           title:value("title").trim(),
           member_ids:selected("member_ids"),
-          steps:steps.map((title, i) => ({
-            ...(original.steps?.[i]?.id ? {id:original.steps[i].id} : {}),
-            title,
-          })),
+          steps:mapped,
         };
       }
       if (collection === "rotations") return {
