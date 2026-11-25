@@ -278,14 +278,14 @@
         field("title", "Routine", record.title, "text", true),
         memberOptions("member_ids", "Assigned members", record.member_ids),
         textarea("steps", "Checklist steps, one per line",
-          (record.steps || []).map(step => step.title).join("\\n")),
+          (record.steps || []).map(step => step.title).join("\n")),
       ].join("");
       if (collection === "rotations") return [
         field("starts_on", "Start date", record.starts_on, "date", true),
         field("days_per_block", "Days per household", record.days_per_block || 7, "number", true),
         memberOptions("member_ids", "Assigned members", record.member_ids),
         textarea("households", "Households, one per line",
-          (record.households || []).join("\\n")),
+          (record.households || []).join("\n")),
       ].join("");
       return "";
     }
@@ -345,7 +345,7 @@
         member_ids:selected("member_ids"), message:value("message"),
       };
       if (collection === "routines") {
-        const steps = value("steps").split("\\n").map(x => x.trim()).filter(Boolean);
+        const steps = value("steps").split("\n").map(x => x.trim()).filter(Boolean);
         return {
           title:value("title").trim(),
           member_ids:selected("member_ids"),
@@ -358,7 +358,7 @@
       if (collection === "rotations") return {
         starts_on:value("starts_on"), days_per_block:Number(value("days_per_block")),
         member_ids:selected("member_ids"),
-        households:value("households").split("\\n").map(x => x.trim()).filter(Boolean),
+        households:value("households").split("\n").map(x => x.trim()).filter(Boolean),
       };
       throw new Error("Unsupported editing collection");
     }
