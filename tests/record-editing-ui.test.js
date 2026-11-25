@@ -209,3 +209,28 @@ test("delete confirmation protects records until explicitly accepted",async()=>{
   assert.equal(sent[0].type,"family_hub/delete_record");
   assert.equal(sent[0].record_id,"reward");
 });
+
+
+test("removing a routine step never adopts the deleted step's identity",()=>{
+  const card=createCard();
+  const original={
+    steps:[{id:"step-one",title:"First"},{id:"step-two",title:"Second"}],
+  };
+  const result=card.collectFields("routines",form({
+    title:"Evening routine",steps:"Second"
+  },{member_ids:["generic-id"]}),original);
+  assert.equal(result.steps.length,1);
+  assert.equal(result.steps[0].id,"step-two");
+  assert.equal(result.steps[0].title,"Second");
+});
+
+test("reordering routine steps preserves their original completion identities",()=>{
+  const card=createCard();
+  const original={
+    steps:[{id:"step-one",title:"First"},{id:"step-two",title:"Second"}],
+  };
+  const result=card.collectFields("routines",form({
+    title:"Evening routine",steps:"Second\nFirst"
+  },{member_ids:["generic-id"]}),original);
+  assert.deepEqual(Array.from(result.steps,x=>x.id),["step-two","step-one"]);
+});
